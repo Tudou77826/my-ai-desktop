@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+bin/
+release/
+
+# Neutralino
+neutralino.config.json.backup
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+debug.log
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# TypeScript
+*.tsbuildinfo
+
+# Vite
+*.local
+.vite/
+
+# Test files
+test-*.html
+test-*.cjs
+test-*.js
+nul
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
