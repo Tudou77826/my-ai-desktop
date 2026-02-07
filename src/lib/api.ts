@@ -218,12 +218,11 @@ export const api = {
   },
 
   /**
-   * Import multiple projects from scan results
+   * Remove a project from the list (does not delete files)
    */
-  async importProjects(projects: any[]): Promise<{ added: number; skipped: number; total: number; results: any[] }> {
-    return apiCall('/projects/import', {
-      method: 'POST',
-      body: JSON.stringify({ projects }),
+  async removeProject(projectPath: string): Promise<any> {
+    return apiCall(`/projects/${encodeURIComponent(projectPath)}`, {
+      method: 'DELETE',
     });
   },
 

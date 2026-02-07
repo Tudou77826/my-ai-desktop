@@ -1,7 +1,7 @@
 // ==================== ProjectsList Component ====================
 
 import { useEffect, useState, useMemo } from 'react';
-import { Folder, Search, RefreshCw, Plus, HardDrive, Download } from 'lucide-react';
+import { Folder, Search, RefreshCw, Plus, HardDrive, Trash2, X } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useToast } from './ui/Toast';
 import { Input } from './ui/Input';
@@ -32,8 +32,7 @@ export function ProjectsList() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newProjectPath, setNewProjectPath] = useState('');
   const [addingProject, setAddingProject] = useState(false);
-  const [lastScanResult, setLastScanResult] = useState<{ count: number; scannedPaths: string[]; projects: any[] } | null>(null);
-  const [importing, setImporting] = useState(false);
+  const [scanSummary, setScanSummary] = useState<{ found: number; imported: number } | null>(null);
 
   // Debounce search query
   useEffect(() => {
@@ -70,30 +69,30 @@ export function ProjectsList() {
     }
 
     setScanning(true);
+    setScanSummary(null);
     try {
       const searchPath = pathsToScan.join(',');
       const result: any = await api.scanProjects(searchPath);
 
       // Handle new response format
       if (result && typeof result === 'object' && 'projects' in result) {
-        setLastScanResult({
-          count: result.count || result.projects?.length || 0,
-          scannedPaths: result.scannedPaths || [],
-          projects: result.projects || []
-        });
-        showToast(`Found ${result.count || 0} projects in ${result.scannedPaths?.length || 0} paths`, 'success');
+        const found = result.count || result.projects?.length || 0;
+        const imported = result.imported || 0;
+        setScanSummary({ found, imported });
+
+        if (imported > 0) {
+          showToast(`Scanned and imported ${imported} new projects (found ${found} total)`, 'success');
+        } else {
+          showToast(`Found ${found} projects (all already in list)`, 'success');
+        }
       } else {
         // Legacy format (array of projects)
         const projects = Array.isArray(result) ? result : [];
-        setLastScanResult({
-          count: projects.length,
-          scannedPaths: pathsToScan,
-          projects
-        });
+        setScanSummary({ found: projects.length, imported: 0 });
         showToast(`Found ${projects.length} projects`, 'success');
       }
 
-      // Reload data
+      // Reload data to show updated project list
       await loadData();
     } catch (error) {
       showToast(`Failed to scan projects: ${(error as Error).message}`, 'error');
@@ -108,30 +107,6 @@ export function ProjectsList() {
       showToast('Projects refreshed', 'success');
     } catch (error) {
       showToast(`Failed to refresh: ${(error as Error).message}`, 'error');
-    }
-  };
-
-  const handleImportAll = async () => {
-    if (!lastScanResult?.projects || lastScanResult.projects.length === 0) {
-      showToast('No scan results to import', 'error');
-      return;
-    }
-
-    setImporting(true);
-    try {
-      const result = await api.importProjects(lastScanResult.projects);
-
-      showToast(`Imported ${result.added} projects (${result.skipped} skipped)`, 'success');
-
-      // Clear scan results after import
-      setLastScanResult(null);
-
-      // Reload data
-      await loadData();
-    } catch (error) {
-      showToast(`Failed to import projects: ${(error as Error).message}`, 'error');
-    } finally {
-      setImporting(false);
     }
   };
 
@@ -173,6 +148,21 @@ export function ProjectsList() {
     }
   };
 
+  const handleRemoveProject = async (projectPath: string, projectName: string) => {
+    if (!confirm(`Remove "${projectName}" from the project list?\n\nThis will only remove the record, not delete any files.`)) {
+      return;
+    }
+
+    try {
+      await api.removeProject(projectPath);
+      await loadData();
+      showToast(`Project "${projectName}" removed from list`, 'success');
+    } catch (error: any) {
+      const errorMsg = error.message || 'Failed to remove project';
+      showToast(errorMsg, 'error');
+    }
+  };
+
   const toggleScanPath = (path: string) => {
     setSelectedScanPaths(prev =>
       prev.includes(path)
@@ -181,32 +171,32 @@ export function ProjectsList() {
     );
   };
 
+  const dismissScanSummary = () => {
+    setScanSummary(null);
+  };
+
   return (
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Projects</h1>
         <p className="text-gray-600">Manage your ClaudeCode projects</p>
-        {lastScanResult && (
-          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+        {scanSummary && (
+          <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-blue-900">
-                Found {lastScanResult.count} projects
+              <p className="text-sm font-medium text-green-900">
+                Scanned and imported {scanSummary.imported} new projects
               </p>
-              <p className="text-xs text-blue-700">
-                Scanned {lastScanResult.scannedPaths.length} paths
+              <p className="text-xs text-green-700">
+                Found {scanSummary.found} total projects
               </p>
             </div>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleImportAll}
-              disabled={importing}
-              className="flex items-center gap-2"
+            <button
+              onClick={dismissScanSummary}
+              className="text-green-600 hover:text-green-800 p-1"
             >
-              <Download className="w-4 h-4" />
-              {importing ? 'Importing...' : 'Import All'}
-            </Button>
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
       </div>
@@ -289,17 +279,25 @@ export function ProjectsList() {
           <p className="text-sm text-gray-400 mt-2">
             {debouncedQuery
               ? 'Try a different search term'
-              : 'Select scan paths above and click "Scan" to discover projects, then click "Import All" to add them.'}
+              : 'Select scan paths above and click "Scan" to discover and import projects.'}
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProjects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              onViewDetails={handleViewDetails}
-            />
+            <div key={project.id} className="relative">
+              <button
+                onClick={() => handleRemoveProject(project.path, project.name)}
+                className="absolute top-2 right-2 z-10 p-1.5 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
+                title="Remove from list"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+              <ProjectCard
+                project={project}
+                onViewDetails={handleViewDetails}
+              />
+            </div>
           ))}
         </div>
       )}

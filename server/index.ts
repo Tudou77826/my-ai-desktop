@@ -840,10 +840,25 @@ app.get('/api/projects/scan', async (req, res) => {
       new Map(projects.map(p => [p.path, p])).values()
     );
 
+    // Auto-import all found projects
+    let importedCount = 0;
+    for (const project of uniqueProjects) {
+      if (!manuallyAddedProjects.has(project.path)) {
+        manuallyAddedProjects.add(project.path);
+        importedCount++;
+      }
+    }
+
+    // Save if any new projects were added
+    if (importedCount > 0) {
+      await saveManualProjects();
+    }
+
     res.json({
       projects: uniqueProjects,
       scannedPaths,
-      count: uniqueProjects.length
+      count: uniqueProjects.length,
+      imported: importedCount
     });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -1018,6 +1033,37 @@ app.post('/api/projects/import', async (req, res) => {
       total: projects.length,
       results
     });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * Remove a project from the list (does not delete files)
+ */
+app.delete('/api/projects/:projectPath', async (req, res) => {
+  try {
+    const { projectPath } = req.params;
+
+    if (!projectPath) {
+      return res.status(400).json({ error: 'Project path is required' });
+    }
+
+    // Decode URL-encoded path
+    const decodedPath = decodeURIComponent(projectPath);
+
+    // Remove from manually added projects
+    if (manuallyAddedProjects.has(decodedPath)) {
+      manuallyAddedProjects.delete(decodedPath);
+      await saveManualProjects();
+
+      res.json({
+        success: true,
+        message: 'Project removed from list'
+      });
+    } else {
+      res.status(404).json({ error: 'Project not found in list' });
+    }
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
