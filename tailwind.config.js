@@ -76,5 +76,145 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // Simple prose plugin for markdown content
+    function({ addUtilities }) {
+      const newUtilities = {
+        '.prose': {
+          'color': '#374151',
+          'max-width': '65ch',
+          '& h1': {
+            'font-size': '1.875rem',
+            'font-weight': '700',
+            'margin-top': '0',
+            'margin-bottom': '1rem',
+            'line-height': '1.2',
+          },
+          '& h2': {
+            'font-size': '1.5rem',
+            'font-weight': '600',
+            'margin-top': '2rem',
+            'margin-bottom': '1rem',
+            'line-height': '1.3',
+          },
+          '& h3': {
+            'font-size': '1.25rem',
+            'font-weight': '600',
+            'margin-top': '1.6rem',
+            'margin-bottom': '0.75rem',
+            'line-height': '1.4',
+          },
+          '& p': {
+            'margin-top': '0',
+            'margin-bottom': '1.25em',
+            'line-height': '1.75',
+          },
+          '& strong': {
+            'font-weight': '600',
+            'color': '#111827',
+          },
+          '& em': {
+            'font-style': 'italic',
+          },
+          '& code': {
+            'color': '#111827',
+            'font-weight': '600',
+            'font-size': '0.875em',
+          },
+          '& pre': {
+            'color': '#e5e7eb',
+            'backgroundColor': '#1f2937',
+            'overflowX': 'auto',
+            'fontSize': '0.875em',
+            'lineHeight': '1.7142857',
+            'marginTop': '1.7142857em',
+            'marginBottom': '1.7142857em',
+            'borderRadius': '0.375rem',
+            'padding': '0.8571429em 1.1428571em',
+          },
+          '& pre code': {
+            'backgroundColor': 'transparent',
+            'borderWidth': '0',
+            'borderRadius': '0',
+            'padding': '0',
+            'fontWeight': '400',
+            'color': 'inherit',
+            'fontSize': 'inherit',
+            'fontFamily': 'inherit',
+            'lineHeight': 'inherit',
+          },
+          '& a': {
+            'color': '#d97706',
+            'textDecoration': 'underline',
+            'fontWeight': '500',
+          },
+          '& ul': {
+            'listStyleType': 'disc',
+            'paddingLeft': '1.625rem',
+            'marginTop': '1.25em',
+            'marginBottom': '1.25em',
+          },
+          '& ol': {
+            'listStyleType': 'decimal',
+            'paddingLeft': '1.625rem',
+            'marginTop': '1.25em',
+            'marginBottom': '1.25em',
+          },
+          '& li': {
+            'marginTop': '0.5em',
+            'marginBottom': '0.5em',
+          },
+          '& blockquote': {
+            'fontWeight': '500',
+            'fontStyle': 'italic',
+            'color': '#111827',
+            'borderLeftWidth': '0.25rem',
+            'borderLeftColor': '#e5e7eb',
+            'quotes': '"\\201C""\\201D""\\2018""\\2019"',
+            'marginTop': '1.6em',
+            'marginBottom': '1.6em',
+            'paddingLeft': '1em',
+          },
+        },
+        '.prose-sm': {
+          'fontSize': '0.875rem',
+          'lineHeight': '1.7142857',
+          '& h1': {
+            'fontSize': '1.5rem',
+            'marginTop': '0',
+            'marginBottom': '0.8888889em',
+            'lineHeight': '1.1111111',
+          },
+          '& h2': {
+            'fontSize': '1.25rem',
+            'marginTop': '1.6em',
+            'marginBottom': '0.8888889em',
+            'lineHeight': '1.2222222',
+          },
+          '& h3': {
+            'fontSize': '1.125rem',
+            'marginTop': '1.6666667em',
+            'marginBottom': '0.6666667em',
+            'lineHeight': '1.3333333',
+          },
+          '& p': {
+            'marginTop': '0',
+            'marginBottom': '1.1428571em',
+          },
+          '& pre': {
+            'fontSize': '0.875em',
+            'lineHeight': '1.7142857',
+            'marginTop': '1.7142857em',
+            'marginBottom': '1.7142857em',
+            'borderRadius': '0.375rem',
+            'paddingTop': '0.8571429em',
+            'paddingRight': '1.1428571em',
+            'paddingBottom': '0.8571429em',
+            'paddingLeft': '1.1428571em',
+          },
+        },
+      }
+      addUtilities(newUtilities)
+    },
+  ],
 }

@@ -3,9 +3,14 @@
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
 import { Dashboard } from './components/Dashboard';
+import { SkillsList } from './components/SkillsList';
+import { MCPServers } from './components/MCPServers';
+import { ProjectsList } from './components/ProjectsList';
+import { ConfigEditor } from './components/ConfigEditor';
+import { ToastProvider } from './components/ui/Toast';
 import { useAppStore } from './store/appStore';
 
-function App() {
+function AppContent() {
   const { selectedTab } = useAppStore();
 
   // Render content based on selected tab
@@ -14,29 +19,13 @@ function App() {
       case 'dashboard':
         return <Dashboard />;
       case 'skills':
-        return (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-gray-500">Skills 管理页面 - 开发中...</p>
-          </div>
-        );
+        return <SkillsList />;
       case 'mcp':
-        return (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-gray-500">MCP 服务器页面 - 开发中...</p>
-          </div>
-        );
+        return <MCPServers />;
       case 'projects':
-        return (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-gray-500">项目管理页面 - 开发中...</p>
-          </div>
-        );
+        return <ProjectsList />;
       case 'config':
-        return (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-gray-500">配置编辑器页面 - 开发中...</p>
-          </div>
-        );
+        return <div className="h-full"><ConfigEditor /></div>;
       default:
         return <Dashboard />;
     }
@@ -48,10 +37,22 @@ function App() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex-1 ml-60 mt-14 overflow-auto">
-          <div className="p-6">{renderContent()}</div>
+          {selectedTab === 'config' ? (
+            renderContent()
+          ) : (
+            <div className="p-6">{renderContent()}</div>
+          )}
         </main>
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 }
 

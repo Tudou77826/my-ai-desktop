@@ -7,6 +7,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { createWriteStream } from 'fs';
+import { validateConfig } from './validator';
 
 const app = express();
 const PORT = 3001;
@@ -23,6 +24,40 @@ function debugLog(...args: any[]) {
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// ==================== Persistent Storage ====================
+// Store manually added projects in a file
+const MANUAL_PROJECTS_FILE = path.join(os.homedir(), '.claude-config-manager-projects.json');
+
+let manuallyAddedProjects = new Set<string>();
+
+// Load manually added projects from file on startup
+async function loadManualProjects() {
+  try {
+    if (await fileExists(MANUAL_PROJECTS_FILE)) {
+      const content = await fs.readFile(MANUAL_PROJECTS_FILE, 'utf-8');
+      const projects = JSON.parse(content);
+      manuallyAddedProjects = new Set(projects);
+      debugLog(`[DEBUG] Loaded ${manuallyAddedProjects.size} manual projects from file`);
+    }
+  } catch (error) {
+    debugLog('[DEBUG] Failed to load manual projects:', (error as Error).message);
+  }
+}
+
+// Save manually added projects to file
+async function saveManualProjects() {
+  try {
+    const projects = Array.from(manuallyAddedProjects);
+    await fs.writeFile(MANUAL_PROJECTS_FILE, JSON.stringify(projects, null, 2), 'utf-8');
+    debugLog(`[DEBUG] Saved ${projects.length} manual projects to file`);
+  } catch (error) {
+    debugLog('[DEBUG] Failed to save manual projects:', (error as Error).message);
+  }
+}
+
+// Load on startup
+loadManualProjects();
 
 // ==================== Utility Functions ====================
 
@@ -204,8 +239,131 @@ app.get('/api/data/all', async (req, res) => {
       debugLog('Failed to scan skills:', error);
     }
 
-    // Projects scanning - TODO
-    results.projects = [];
+    // Auto-scan projects from common locations
+    try {
+      const scanPaths = [
+        '~', // Home directory
+        '~/dev', '~/projects', '~/workspace', // Common project directories
+        '~/Documents', // Windows projects
+      ];
+
+      const scannedProjects = new Map<string, any>();
+
+      for (const scanPath of scanPaths) {
+        try {
+          const expandedPath = expandPath(scanPath);
+          if (!(await fileExists(expandedPath))) continue;
+
+          // Scan directory with depth limit
+          await scanDirectoryForProjects(expandedPath, scannedProjects, 0, 2);
+        } catch (err) {
+          // Skip paths that don't exist or can't be accessed
+          debugLog(`[DEBUG] Skipping path ${scanPath}:`, (err as Error).message);
+        }
+      }
+
+      // Convert map to array
+      results.projects = Array.from(scannedProjects.values());
+
+      // Add manually added projects that weren't found during scanning
+      for (const projectPath of manuallyAddedProjects) {
+        if (!scannedProjects.has(projectPath)) {
+          try {
+            const stats = await fs.stat(projectPath);
+            const claudePath = path.join(projectPath, '.claude');
+            const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
+            const hasClaude = await fileExists(claudePath);
+            const hasClaudeMd = await fileExists(claudeMdPath);
+
+            results.projects.push({
+              id: projectPath,
+              name: path.basename(projectPath),
+              path: projectPath,
+              exists: true,
+              lastModified: stats.mtime,
+              hasClaudeConfig: hasClaude,
+              hasClaudeMd: hasClaudeMd,
+            });
+
+            debugLog(`[DEBUG] Added manual project: ${projectPath}`);
+          } catch (err) {
+            // Project no longer exists, skip it
+            debugLog(`[DEBUG] Manual project no longer exists: ${projectPath}`);
+          }
+        }
+      }
+
+      debugLog(`[DEBUG] Total ${results.projects.length} projects (auto-scanned + manual)`);
+
+      // Scan project config files
+      for (const project of results.projects) {
+        const projectPath = project.path;
+
+        // Scan .claude directory for config files
+        const claudeDir = path.join(projectPath, '.claude');
+        if (await fileExists(claudeDir)) {
+          try {
+            const entries = await fs.readdir(claudeDir);
+
+            for (const entry of entries) {
+              // Only process JSON config files
+              if (!entry.endsWith('.json')) continue;
+
+              const configPath = path.join(claudeDir, entry);
+              try {
+                const content = await fs.readFile(configPath, 'utf-8');
+                const parsed = JSON.parse(content);
+
+                results.configFiles.push({
+                  path: configPath,
+                  type: entry.includes('settings') ? 'settings' : 'config',
+                  scope: 'project',
+                  format: 'json',
+                  content: parsed,
+                  raw: content,
+                  projectName: project.name,
+                  projectId: project.id,
+                });
+
+                debugLog(`[DEBUG] Added project config: ${configPath}`);
+              } catch (err) {
+                debugLog(`[DEBUG] Failed to read ${configPath}:`, (err as Error).message);
+              }
+            }
+          } catch (err) {
+            debugLog(`[DEBUG] Failed to scan .claude directory:`, (err as Error).message);
+          }
+        }
+
+        // Add CLAUDE.md as a config file if it exists
+        const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
+        if (await fileExists(claudeMdPath)) {
+          try {
+            const content = await fs.readFile(claudeMdPath, 'utf-8');
+
+            results.configFiles.push({
+              path: claudeMdPath,
+              type: 'claude_md',
+              scope: 'project',
+              format: 'markdown',
+              content: content,
+              raw: content,
+              projectName: project.name,
+              projectId: project.id,
+            });
+
+            debugLog(`[DEBUG] Added CLAUDE.md: ${claudeMdPath}`);
+          } catch (err) {
+            debugLog(`[DEBUG] Failed to read CLAUDE.md:`, (err as Error).message);
+          }
+        }
+      }
+
+      debugLog(`[DEBUG] Total config files: ${results.configFiles.length} (${results.configFiles.filter(f => f.scope === 'global').length} global, ${results.configFiles.filter(f => f.scope === 'project').length} project)`);
+    } catch (error) {
+      debugLog('Failed to auto-scan projects:', error);
+      results.projects = [];
+    }
 
     res.json(results);
   } catch (error) {
@@ -213,6 +371,63 @@ app.get('/api/data/all', async (req, res) => {
     res.status(500).json({ error: (error as Error).message });
   }
 });
+
+/**
+ * Helper function to scan directory for ClaudeCode projects
+ */
+async function scanDirectoryForProjects(
+  dir: string,
+  projects: Map<string, any>,
+  depth: number,
+  maxDepth: number
+) {
+  if (depth > maxDepth) return;
+
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      const projectPath = path.join(dir, entry.name);
+      const claudePath = path.join(projectPath, '.claude');
+      const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
+
+      try {
+        const hasClaude = await fileExists(claudePath);
+        const hasClaudeMd = await fileExists(claudeMdPath);
+
+        if (hasClaude || hasClaudeMd) {
+          // This is a ClaudeCode project
+          const stats = await fs.stat(projectPath);
+
+          // Check if already scanned
+          if (!projects.has(projectPath)) {
+            projects.set(projectPath, {
+              id: projectPath,
+              name: entry.name,
+              path: projectPath,
+              exists: true,
+              lastModified: stats.mtime,
+              hasClaudeConfig: hasClaude,
+              hasClaudeMd: hasClaudeMd,
+            });
+
+            debugLog(`[DEBUG] Found project: ${entry.name} at ${projectPath}`);
+          }
+        } else {
+          // Recursively scan subdirectories
+          await scanDirectoryForProjects(projectPath, projects, depth + 1, maxDepth);
+        }
+      } catch (err) {
+        // Skip directories we can't access
+        continue;
+      }
+    }
+  } catch (err) {
+    // Skip directories we can't read
+  }
+}
 
 /**
  * Read a single configuration file
@@ -247,6 +462,24 @@ app.get('/api/config/read', async (req, res) => {
 });
 
 /**
+ * Validate configuration content
+ */
+app.post('/api/config/validate', async (req, res) => {
+  try {
+    const { configType, content } = req.body;
+
+    if (!configType || !content) {
+      return res.status(400).json({ error: 'configType and content are required' });
+    }
+
+    const result = validateConfig(configType, content);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
  * Write a configuration file
  */
 app.post('/api/config/write', async (req, res) => {
@@ -259,6 +492,21 @@ app.post('/api/config/write', async (req, res) => {
 
     const expandedPath = expandPath(filePath);
 
+    // Determine config type
+    let configType = 'json';
+    if (filePath.includes('mcp.json')) configType = 'mcp';
+    else if (filePath.includes('settings.json')) configType = 'settings';
+    else if (filePath.includes('CLAUDE.md')) configType = 'claude_md';
+
+    // Validate content
+    const validation = validateConfig(configType, content);
+    if (!validation.valid) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validation.errors
+      });
+    }
+
     // Create backup if requested
     if (backup && await fileExists(expandedPath)) {
       const backupPath = `${expandedPath}.backup`;
@@ -266,17 +514,14 @@ app.post('/api/config/write', async (req, res) => {
       await fs.writeFile(backupPath, originalContent);
     }
 
-    // Validate JSON
-    try {
-      JSON.parse(content);
-    } catch (error) {
-      return res.status(400).json({ error: 'Invalid JSON' });
-    }
-
     // Write file
     await fs.writeFile(expandedPath, content, 'utf-8');
 
-    res.json({ success: true, path: expandedPath });
+    res.json({
+      success: true,
+      path: expandedPath,
+      warnings: validation.warnings
+    });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -302,16 +547,29 @@ app.post('/api/mcp/toggle', async (req, res) => {
     const content = await fs.readFile(configPath, 'utf-8');
     const config = JSON.parse(content);
 
-    if (!config.mcpServers || !Array.isArray(config.mcpServers)) {
+    if (!config.mcpServers) {
       return res.status(400).json({ error: 'Invalid MCP config format' });
     }
 
-    const server = config.mcpServers.find((s: any) => s.id === serverId);
-    if (!server) {
-      return res.status(404).json({ error: 'Server not found' });
+    // Handle both object format (key-value) and array format
+    if (Array.isArray(config.mcpServers)) {
+      // Array format
+      const server = config.mcpServers.find((s: any) => s.id === serverId);
+      if (!server) {
+        return res.status(404).json({ error: 'Server not found' });
+      }
+      server.enabled = enabled;
+    } else {
+      // Object format (key-value)
+      const server = config.mcpServers[serverId];
+      if (!server) {
+        return res.status(404).json({ error: 'Server not found' });
+      }
+      server.enabled = enabled;
     }
 
-    server.enabled = enabled;
+    // Create backup
+    await fs.writeFile(`${configPath}.backup`, content);
 
     // Write back
     await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
@@ -364,6 +622,213 @@ app.post('/api/mcp/test', async (req, res) => {
       error: (error as Error).message,
       lastCheck: new Date()
     });
+  }
+});
+
+/**
+ * Toggle Skill enabled/disabled
+ */
+app.post('/api/skill/toggle', async (req, res) => {
+  try {
+    const { skillId, enabled } = req.body;
+
+    if (!skillId || typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'skillId and enabled are required' });
+    }
+
+    const settingsPath = expandPath('~/.claude/settings.json');
+
+    if (!(await fileExists(settingsPath))) {
+      return res.status(404).json({ error: 'Settings file not found' });
+    }
+
+    const content = await fs.readFile(settingsPath, 'utf-8');
+    const config = JSON.parse(content);
+
+    // Initialize disabledSkills array if it doesn't exist
+    if (!config.disabledSkills) {
+      config.disabledSkills = [];
+    }
+
+    // Update disabledSkills array
+    if (enabled) {
+      config.disabledSkills = config.disabledSkills.filter((id: string) => id !== skillId);
+    } else {
+      if (!config.disabledSkills.includes(skillId)) {
+        config.disabledSkills.push(skillId);
+      }
+    }
+
+    // Create backup
+    await fs.writeFile(`${settingsPath}.backup`, content);
+
+    // Write updated config
+    await fs.writeFile(settingsPath, JSON.stringify(config, null, 2), 'utf-8');
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * Scan projects directory
+ */
+app.get('/api/projects/scan', async (req, res) => {
+  try {
+    const { searchPath = '~' } = req.query;
+    const expandedPath = expandPath(searchPath as string);
+    const projects = [];
+
+    // Recursive scan function
+    async function scanDirectory(dir: string, depth = 0) {
+      if (depth > 3) return; // Limit recursion depth
+
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+
+        const projectPath = path.join(dir, entry.name);
+        const claudePath = path.join(projectPath, '.claude');
+        const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
+
+        const hasClaude = await fileExists(claudePath);
+        const hasClaudeMd = await fileExists(claudeMdPath);
+
+        if (hasClaude || hasClaudeMd) {
+          // This is a ClaudeCode project
+          try {
+            const stats = await fs.stat(projectPath);
+
+            projects.push({
+              id: projectPath,
+              name: entry.name,
+              path: projectPath,
+              exists: true,
+              lastModified: stats.mtime,
+              hasClaudeConfig: hasClaude,
+              hasClaudeMd: hasClaudeMd
+            });
+          } catch {
+            // Skip if stat fails
+          }
+        } else {
+          // Recursively scan subdirectory
+          await scanDirectory(projectPath, depth + 1);
+        }
+      }
+    }
+
+    await scanDirectory(expandedPath);
+    res.json(projects);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * Get project detail
+ */
+app.get('/api/project/detail', async (req, res) => {
+  try {
+    const { path: projectPath } = req.query;
+
+    if (!projectPath || typeof projectPath !== 'string') {
+      return res.status(400).json({ error: 'Project path is required' });
+    }
+
+    const expandedPath = expandPath(projectPath as string);
+    const project: any = {
+      path: expandedPath,
+      config: null,
+      claudeMd: null
+    };
+
+    // Load .claude/config.json
+    const claudePath = path.join(expandedPath, '.claude');
+    if (await fileExists(claudePath)) {
+      const configPath = path.join(claudePath, 'config.json');
+      if (await fileExists(configPath)) {
+        const content = await fs.readFile(configPath, 'utf-8');
+        project.config = JSON.parse(content);
+      }
+    }
+
+    // Load CLAUDE.md
+    const claudeMdPath = path.join(expandedPath, 'CLAUDE.md');
+    if (await fileExists(claudeMdPath)) {
+      project.claudeMd = {
+        path: claudeMdPath,
+        content: await fs.readFile(claudeMdPath, 'utf-8')
+      };
+    }
+
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * Manually add a project path
+ */
+app.post('/api/project/add', async (req, res) => {
+  try {
+    const { projectPath } = req.body;
+
+    if (!projectPath || typeof projectPath !== 'string') {
+      return res.status(400).json({ error: 'Project path is required' });
+    }
+
+    const expandedPath = expandPath(projectPath);
+
+    // Check if path exists
+    if (!(await fileExists(expandedPath))) {
+      return res.status(404).json({ error: 'Path does not exist' });
+    }
+
+    // Check if it's a directory
+    try {
+      const stats = await fs.stat(expandedPath);
+      if (!stats.isDirectory()) {
+        return res.status(400).json({ error: 'Path must be a directory' });
+      }
+    } catch (error) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+
+    // Check for ClaudeCode indicators
+    const claudePath = path.join(expandedPath, '.claude');
+    const claudeMdPath = path.join(expandedPath, 'CLAUDE.md');
+
+    const hasClaude = await fileExists(claudePath);
+    const hasClaudeMd = await fileExists(claudeMdPath);
+
+    if (!hasClaude && !hasClaudeMd) {
+      return res.status(400).json({
+        error: 'Not a ClaudeCode project',
+        message: 'Directory must contain .claude/ or CLAUDE.md'
+      });
+    }
+
+    // Add to manually added projects list
+    manuallyAddedProjects.add(expandedPath);
+    await saveManualProjects();
+    debugLog(`[DEBUG] Manually added project: ${expandedPath}`);
+
+    // Return project info
+    res.json({
+      id: expandedPath,
+      name: path.basename(expandedPath),
+      path: expandedPath,
+      exists: true,
+      lastModified: (await fs.stat(expandedPath)).mtime,
+      hasClaudeConfig: hasClaude,
+      hasClaudeMd: hasClaudeMd,
+    });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 

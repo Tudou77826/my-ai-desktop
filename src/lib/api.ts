@@ -75,20 +75,10 @@ export const api = {
    * Validate configuration
    */
   async validateConfig(configType: string, content: string): Promise<ValidationResult> {
-    try {
-      const parsed = JSON.parse(content);
-
-      // Basic validation rules
-      if (configType === 'mcp') {
-        if (!parsed.mcpServers || !Array.isArray(parsed.mcpServers)) {
-          return { valid: false, errors: ['mcpServers must be an array'] };
-        }
-      }
-
-      return { valid: true };
-    } catch (error) {
-      return { valid: false, errors: [(error as Error).message] };
-    }
+    return apiCall('/config/validate', {
+      method: 'POST',
+      body: JSON.stringify({ configType, content }),
+    });
   },
 
   /**
@@ -129,9 +119,10 @@ export const api = {
    * Toggle skill enabled/disabled
    */
   async toggleSkill(skillId: string, enabled: boolean): Promise<void> {
-    // For now, this is a placeholder
-    // In real implementation, would modify ~/.claude/settings.json
-    console.log(`Toggle skill ${skillId}: ${enabled}`);
+    return apiCall('/skill/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ skillId, enabled }),
+    });
   },
 
   /**
@@ -153,6 +144,33 @@ export const api = {
     return apiCall('/mcp/test', {
       method: 'POST',
       body: JSON.stringify({ transport: server.transport, url: server.config?.url }),
+    });
+  },
+
+  // ==================== Projects ====================
+
+  /**
+   * Scan directories for ClaudeCode projects
+   */
+  async scanProjects(searchPath?: string): Promise<any[]> {
+    const params = searchPath ? `?searchPath=${encodeURIComponent(searchPath)}` : '';
+    return apiCall(`/projects/scan${params}`);
+  },
+
+  /**
+   * Get project details
+   */
+  async getProjectDetail(projectPath: string): Promise<any> {
+    return apiCall(`/project/detail?path=${encodeURIComponent(projectPath)}`);
+  },
+
+  /**
+   * Manually add a project path
+   */
+  async addProject(projectPath: string): Promise<any> {
+    return apiCall('/project/add', {
+      method: 'POST',
+      body: JSON.stringify({ projectPath }),
     });
   },
 };
