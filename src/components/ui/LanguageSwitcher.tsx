@@ -1,11 +1,9 @@
 // ==================== Language Switcher Component ====================
 
-import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../../store/appStore';
 import { Globe } from 'lucide-react';
 
 export function LanguageSwitcher() {
-  const { t } = useTranslation();
   const { language, setLanguage } = useAppStore();
 
   return (

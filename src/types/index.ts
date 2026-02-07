@@ -56,6 +56,9 @@ export interface Project {
     content: string;
   };
   lastModified?: Date;
+  // Project detection flags
+  hasClaudeConfig?: boolean;
+  hasClaudeMd?: boolean;
 }
 
 /**
@@ -63,11 +66,14 @@ export interface Project {
  */
 export interface ConfigFile {
   path: string;
-  type: 'settings' | 'mcp' | 'claude_md';
+  type: 'settings' | 'mcp' | 'claude_md' | 'config';
   scope: 'global' | 'project';
   format: 'json' | 'markdown';
   content?: any;
   raw?: string;
+  // For project-scoped configs
+  projectName?: string;
+  projectId?: string;
 }
 
 /**

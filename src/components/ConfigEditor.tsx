@@ -47,6 +47,66 @@ export function ConfigEditor() {
   const buildFileTree = (configs: any[], scopeLabel: string): TreeNode[] => {
     if (configs.length === 0) return [];
 
+    // Group project configs by project name
+    if (scopeLabel === 'Project') {
+      const projectMap = new Map<string, any[]>();
+
+      configs.forEach((file) => {
+        // Use projectName field if available, otherwise extract from path
+        let projectName = file.projectName;
+
+        if (!projectName) {
+          // Fallback: extract project name from path
+          const pathParts = file.path.split(/[/\\]/);
+          for (let i = 0; i < pathParts.length; i++) {
+            if (pathParts[i] === '.claude' && i > 0) {
+              projectName = pathParts[i - 1];
+              break;
+            }
+            if (pathParts[i].includes('CLAUDE.md') && i > 0) {
+              projectName = pathParts[i - 1] || 'Root';
+              break;
+            }
+            if (pathParts[i] === 'settings.local.json' || pathParts[i] === 'config.json') {
+              if (i > 0) {
+                if (i > 1 && pathParts[i - 1] === '.claude') {
+                  projectName = pathParts[i - 2];
+                } else {
+                  projectName = pathParts[i - 1];
+                }
+              }
+              break;
+            }
+          }
+        }
+
+        if (!projectName) {
+          projectName = 'Unknown';
+        }
+
+        if (!projectMap.has(projectName)) {
+          projectMap.set(projectName, []);
+        }
+        projectMap.get(projectName)!.push(file);
+      });
+
+      // Build tree nodes grouped by project
+      return Array.from(projectMap.entries()).map(([projectName, files]) => ({
+        name: projectName,
+        path: `__project_${projectName}__`,
+        type: 'directory' as const,
+        children: files.map((file) => {
+          const fileName = file.path.split(/[/\\]/).pop() || file.path;
+          return {
+            name: fileName,
+            path: file.path,
+            type: 'file' as const,
+          };
+        }),
+      }));
+    }
+
+    // Global configs - flat list
     return configs.map((file) => {
       const fileName = file.path.split(/[/\\]/).pop() || file.path;
       return {

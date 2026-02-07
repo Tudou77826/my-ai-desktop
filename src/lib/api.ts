@@ -221,8 +221,9 @@ export const api = {
    * Remove a project from the list (does not delete files)
    */
   async removeProject(projectPath: string): Promise<any> {
-    return apiCall(`/projects/${encodeURIComponent(projectPath)}`, {
-      method: 'DELETE',
+    return apiCall('/projects/remove', {
+      method: 'POST',
+      body: JSON.stringify({ projectPath }),
     });
   },
 

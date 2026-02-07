@@ -2,7 +2,6 @@
 
 import { Dialog } from './ui/Dialog';
 import { BookOpen, Package, Zap } from 'lucide-react';
-import { Badge } from './ui/Badge';
 
 interface ProjectDetailDialogProps {
   open: boolean;
@@ -44,7 +43,7 @@ function renderMarkdown(content: string): { __html: string } {
   html = html.replace(/`(.+?)`/g, '<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-gray-800">$1</code>');
 
   // Code blocks
-  html = html.replace(/```(\w+)?\n([\s\S]+?)```/g, (match, lang, code) => {
+  html = html.replace(/```(\w+)?\n([\s\S]+?)```/g, (_match, _lang, code) => {
     return `<pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto my-4"><code class="text-sm font-mono">${code.trim()}</code></pre>`;
   });
 
@@ -113,7 +112,7 @@ export function ProjectDetailDialog({ open, onOpenChange, project }: ProjectDeta
               </div>
               <div className="bg-gray-50 rounded-lg p-5 overflow-auto max-h-96">
                 <div className="prose prose-sm max-w-none text-gray-700">
-                  <div dangerouslySetInnerHTML={renderMarkdown(project.claudeMd.content)} />
+                  <div dangerouslySetInnerHTML={renderMarkdown(project.claudeMd?.content ?? '')} />
                 </div>
               </div>
             </div>

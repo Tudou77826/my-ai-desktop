@@ -1,7 +1,7 @@
 // ==================== ProjectsList Component ====================
 
 import { useEffect, useState, useMemo } from 'react';
-import { Folder, Search, RefreshCw, Plus, HardDrive, Trash2, X } from 'lucide-react';
+import { Folder, RefreshCw, Plus, HardDrive, Trash2, X } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useToast } from './ui/Toast';
 import { Input } from './ui/Input';
@@ -33,6 +33,11 @@ export function ProjectsList() {
   const [newProjectPath, setNewProjectPath] = useState('');
   const [addingProject, setAddingProject] = useState(false);
   const [scanSummary, setScanSummary] = useState<{ found: number; imported: number } | null>(null);
+
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, []);
 
   // Debounce search query
   useEffect(() => {

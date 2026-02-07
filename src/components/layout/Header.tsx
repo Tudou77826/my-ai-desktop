@@ -1,6 +1,5 @@
 // ==================== Header Component ====================
 
-import { useTranslation } from 'react-i18next';
 import { RefreshCw } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { Button } from '../ui/Button';

@@ -52,8 +52,13 @@ async function loadManualProjects() {
     if (await fileExists(MANUAL_PROJECTS_FILE)) {
       const content = await fs.readFile(MANUAL_PROJECTS_FILE, 'utf-8');
       const projects = JSON.parse(content);
-      manuallyAddedProjects = new Set(projects);
+      // Normalize all paths to avoid duplicates due to different path formats
+      const normalizedProjects = projects.map((p: string) => path.normalize(p));
+      manuallyAddedProjects = new Set(normalizedProjects);
       debugLog(`[DEBUG] Loaded ${manuallyAddedProjects.size} manual projects from file`);
+      // Debug: print first few paths
+      const samplePaths = Array.from(manuallyAddedProjects).slice(0, 3);
+      debugLog(`[DEBUG] Sample paths: ${JSON.stringify(samplePaths)}`);
     }
   } catch (error) {
     debugLog('[DEBUG] Failed to load manual projects:', (error as Error).message);
@@ -63,9 +68,12 @@ async function loadManualProjects() {
 // Save manually added projects to file
 async function saveManualProjects() {
   try {
-    const projects = Array.from(manuallyAddedProjects);
-    await fs.writeFile(MANUAL_PROJECTS_FILE, JSON.stringify(projects, null, 2), 'utf-8');
-    debugLog(`[DEBUG] Saved ${projects.length} manual projects to file`);
+    // Normalize all paths before saving to avoid duplicates
+    const projects = Array.from(manuallyAddedProjects).map(p => path.normalize(p));
+    // Remove duplicates after normalization
+    const uniqueProjects = Array.from(new Set(projects));
+    await fs.writeFile(MANUAL_PROJECTS_FILE, JSON.stringify(uniqueProjects, null, 2), 'utf-8');
+    debugLog(`[DEBUG] Saved ${uniqueProjects.length} manual projects to file`);
   } catch (error) {
     debugLog('[DEBUG] Failed to save manual projects:', (error as Error).message);
   }
@@ -77,13 +85,14 @@ loadManualProjects();
 // ==================== Utility Functions ====================
 
 /**
- * Expand ~ to home directory
+ * Expand ~ to home directory and normalize path
  */
 function expandPath(filePath: string): string {
+  let expanded = filePath;
   if (filePath.startsWith('~')) {
-    return filePath.replace('~', os.homedir());
+    expanded = filePath.replace('~', os.homedir());
   }
-  return filePath;
+  return path.normalize(expanded);
 }
 
 /**
@@ -260,6 +269,8 @@ app.get('/api/data/all', async (req, res) => {
         '~', // Home directory
         '~/dev', '~/projects', '~/workspace', // Common project directories
         '~/Documents', // Windows projects
+        'D:\\', 'D:\\dev', 'D:\\projects', // D drive paths
+        'C:\\dev', 'C:\\projects', // C drive paths
       ];
 
       const scannedProjects = new Map<string, any>();
@@ -267,10 +278,17 @@ app.get('/api/data/all', async (req, res) => {
       for (const scanPath of scanPaths) {
         try {
           const expandedPath = expandPath(scanPath);
-          if (!(await fileExists(expandedPath))) continue;
+          debugLog(`[DEBUG] Scanning path: ${scanPath} -> ${expandedPath}`);
+          if (!(await fileExists(expandedPath))) {
+            debugLog(`[DEBUG] Path does not exist: ${expandedPath}`);
+            continue;
+          }
 
           // Scan directory with depth limit
-          await scanDirectoryForProjects(expandedPath, scannedProjects, 0, 2);
+          const beforeCount = scannedProjects.size;
+          await scanDirectoryForProjects(expandedPath, scannedProjects, 0, 3);
+          const afterCount = scannedProjects.size;
+          debugLog(`[DEBUG] Scanned ${expandedPath}, found ${afterCount - beforeCount} projects`);
         } catch (err) {
           // Skip paths that don't exist or can't be accessed
           debugLog(`[DEBUG] Skipping path ${scanPath}:`, (err as Error).message);
@@ -280,10 +298,26 @@ app.get('/api/data/all', async (req, res) => {
       // Convert map to array
       results.projects = Array.from(scannedProjects.values());
 
+      // Debug: log scanned projects containing my-ai-desktop
+      const scannedMyAiDesktop = Array.from(scannedProjects.values()).filter(p => p.path.includes('my-ai-desktop') && !p.path.includes('.claude'));
+      if (scannedMyAiDesktop.length > 0) {
+        debugLog(`[DEBUG] Scanned my-ai-desktop projects:`, scannedMyAiDesktop.map(p => p.path));
+      }
+
       // Add manually added projects that weren't found during scanning
       const manualProjectsArray = Array.from(manuallyAddedProjects);
+      // Debug: log all manual projects containing my-ai-desktop
+      const myAiDesktopManuals = manualProjectsArray.filter(p => p.includes('my-ai-desktop') && !p.includes('.claude'));
+      debugLog(`[DEBUG] Manual projects with my-ai-desktop in Set:`, myAiDesktopManuals);
+      debugLog(`[DEBUG] Raw Set size: ${manuallyAddedProjects.size}, filtered: ${myAiDesktopManuals.length}`);
+
       for (const projectPath of manualProjectsArray) {
         if (!scannedProjects.has(projectPath)) {
+          // Debug: log if it's my-ai-desktop
+          if (projectPath.includes('my-ai-desktop') && !projectPath.includes('.claude')) {
+            debugLog(`[DEBUG] Adding manual my-ai-desktop project: ${projectPath}`);
+            debugLog(`[DEBUG] Path length: ${projectPath.length}, chars:`, Array.from(projectPath).map(c => c.charCodeAt(0)));
+          }
           try {
             const stats = await fs.stat(projectPath);
             const claudePath = path.join(projectPath, '.claude');
@@ -310,6 +344,19 @@ app.get('/api/data/all', async (req, res) => {
       }
 
       debugLog(`[DEBUG] Total ${results.projects.length} projects (auto-scanned + manual)`);
+
+      // Save all found projects to manual projects list for persistence
+      let needsSave = false;
+      for (const project of results.projects) {
+        const normalizedPath = path.normalize(project.path);
+        if (!manuallyAddedProjects.has(normalizedPath)) {
+          manuallyAddedProjects.add(normalizedPath);
+          needsSave = true;
+        }
+      }
+      if (needsSave) {
+        await saveManualProjects();
+      }
 
       // Scan project config files
       for (const project of results.projects) {
@@ -405,7 +452,7 @@ async function scanDirectoryForProjects(
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
 
-      const projectPath = path.join(dir, entry.name);
+      const projectPath = path.normalize(path.join(dir, entry.name));
       const claudePath = path.join(projectPath, '.claude');
       const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
 
@@ -417,7 +464,7 @@ async function scanDirectoryForProjects(
           // This is a ClaudeCode project
           const stats = await fs.stat(projectPath);
 
-          // Check if already scanned
+          // Check if already scanned (using normalized path as key)
           if (!projects.has(projectPath)) {
             projects.set(projectPath, {
               id: projectPath,
@@ -462,14 +509,45 @@ app.get('/api/config/read', async (req, res) => {
     }
 
     const content = await fs.readFile(expandedPath, 'utf-8');
-    const parsed = JSON.parse(content);
+
+    // Determine file type and format
+    let type: 'settings' | 'mcp' | 'claude_md' | 'config' = 'config';
+    let format: 'json' | 'markdown' = 'json';
+    let parsedContent: any = null;
+
+    if (filePath.includes('mcp.json')) {
+      type = 'mcp';
+      format = 'json';
+      parsedContent = JSON.parse(content);
+    } else if (filePath.includes('settings.json') || filePath.includes('settings.local.json')) {
+      type = 'settings';
+      format = 'json';
+      parsedContent = JSON.parse(content);
+    } else if (filePath.includes('CLAUDE.md')) {
+      type = 'claude_md';
+      format = 'markdown';
+      parsedContent = content; // For markdown, content is the raw text
+    } else if (filePath.endsWith('.json')) {
+      format = 'json';
+      parsedContent = JSON.parse(content);
+    } else if (filePath.endsWith('.md')) {
+      format = 'markdown';
+      parsedContent = content;
+    } else {
+      // Try to parse as JSON, fallback to raw text
+      try {
+        parsedContent = JSON.parse(content);
+      } catch {
+        parsedContent = content;
+      }
+    }
 
     res.json({
       path: expandedPath,
-      type: filePath.includes('mcp.json') ? 'mcp' : 'settings',
+      type,
       scope: filePath.includes('.claude') ? 'global' : 'project',
-      format: 'json',
-      content: parsed,
+      format,
+      content: parsedContent,
       raw: content
     });
   } catch (error) {
@@ -509,12 +587,14 @@ app.post('/api/config/write', async (req, res) => {
     const expandedPath = expandPath(filePath);
 
     // Determine config type
-    let configType = 'json';
+    let configType: 'settings' | 'mcp' | 'claude_md' | 'json' = 'json';
     if (filePath.includes('mcp.json')) configType = 'mcp';
-    else if (filePath.includes('settings.json')) configType = 'settings';
+    else if (filePath.includes('settings.json') || filePath.includes('settings.local.json')) configType = 'settings';
     else if (filePath.includes('CLAUDE.md')) configType = 'claude_md';
+    else if (filePath.endsWith('.md')) configType = 'claude_md';
+    else if (filePath.endsWith('.json')) configType = 'json';
 
-    // Validate content
+    // Validate content (for markdown files, just check if content is not empty)
     const validation = validateConfig(configType, content);
     if (!validation.valid) {
       return res.status(400).json({
@@ -528,10 +608,12 @@ app.post('/api/config/write', async (req, res) => {
       const backupPath = `${expandedPath}.backup`;
       const originalContent = await fs.readFile(expandedPath, 'utf-8');
       await fs.writeFile(backupPath, originalContent);
+      debugLog(`[DEBUG] Created backup: ${backupPath}`);
     }
 
     // Write file
     await fs.writeFile(expandedPath, content, 'utf-8');
+    debugLog(`[DEBUG] Wrote file: ${expandedPath}`);
 
     res.json({
       success: true,
@@ -539,6 +621,7 @@ app.post('/api/config/write', async (req, res) => {
       warnings: validation.warnings
     });
   } catch (error) {
+    debugLog(`[DEBUG] Error writing config: ${(error as Error).message}`);
     res.status(500).json({ error: (error as Error).message });
   }
 });
@@ -760,7 +843,7 @@ const scanProjectsDirectory = async (dir: string, depth = 0, projects: any[] = [
       // Skip certain directories
       if (shouldSkipDirectory(entry.name)) continue;
 
-      const projectPath = path.join(dir, entry.name);
+      const projectPath = path.normalize(path.join(dir, entry.name));
 
       // Double-check the full path before proceeding
       if (shouldSkipPath(projectPath)) continue;
@@ -840,11 +923,12 @@ app.get('/api/projects/scan', async (req, res) => {
       new Map(projects.map(p => [p.path, p])).values()
     );
 
-    // Auto-import all found projects
+    // Auto-import all found projects (normalize paths to avoid duplicates)
     let importedCount = 0;
     for (const project of uniqueProjects) {
-      if (!manuallyAddedProjects.has(project.path)) {
-        manuallyAddedProjects.add(project.path);
+      const normalizedPath = path.normalize(project.path);
+      if (!manuallyAddedProjects.has(normalizedPath)) {
+        manuallyAddedProjects.add(normalizedPath);
         importedCount++;
       }
     }
@@ -950,10 +1034,11 @@ app.post('/api/project/add', async (req, res) => {
       });
     }
 
-    // Add to manually added projects list
-    manuallyAddedProjects.add(expandedPath);
+    // Add to manually added projects list (normalize path to avoid duplicates)
+    const normalizedPath = path.normalize(expandedPath);
+    manuallyAddedProjects.add(normalizedPath);
     await saveManualProjects();
-    debugLog(`[DEBUG] Manually added project: ${expandedPath}`);
+    debugLog(`[DEBUG] Manually added project: ${normalizedPath}`);
 
     // Return project info
     res.json({
@@ -1015,11 +1100,12 @@ app.post('/api/projects/import', async (req, res) => {
         continue;
       }
 
-      // Add to manually added projects
-      manuallyAddedProjects.add(projectPath);
+      // Add to manually added projects (normalize path)
+      const normalizedPath = path.normalize(projectPath);
+      manuallyAddedProjects.add(normalizedPath);
       addedCount++;
       results.push({
-        path: projectPath,
+        path: normalizedPath,
         status: 'added'
       });
     }
@@ -1041,30 +1127,39 @@ app.post('/api/projects/import', async (req, res) => {
 /**
  * Remove a project from the list (does not delete files)
  */
-app.delete('/api/projects/:projectPath', async (req, res) => {
+app.post('/api/projects/remove', async (req, res) => {
   try {
-    const { projectPath } = req.params;
+    const { projectPath } = req.body;
 
     if (!projectPath) {
       return res.status(400).json({ error: 'Project path is required' });
     }
 
-    // Decode URL-encoded path
-    const decodedPath = decodeURIComponent(projectPath);
+    // Normalize path for consistent comparison
+    const normalizedPath = path.normalize(projectPath);
+
+    debugLog(`[DEBUG] Attempting to remove project: ${normalizedPath}`);
+    debugLog(`[DEBUG] Current projects in Set: ${Array.from(manuallyAddedProjects).slice(0, 5).join(', ')}`);
 
     // Remove from manually added projects
-    if (manuallyAddedProjects.has(decodedPath)) {
-      manuallyAddedProjects.delete(decodedPath);
+    if (manuallyAddedProjects.has(normalizedPath)) {
+      manuallyAddedProjects.delete(normalizedPath);
       await saveManualProjects();
+
+      debugLog(`[DEBUG] Successfully removed project: ${normalizedPath}`);
+      debugLog(`[DEBUG] Remaining projects: ${manuallyAddedProjects.size}`);
 
       res.json({
         success: true,
-        message: 'Project removed from list'
+        message: 'Project removed from list',
+        path: normalizedPath
       });
     } else {
+      debugLog(`[DEBUG] Project not found in list: ${normalizedPath}`);
       res.status(404).json({ error: 'Project not found in list' });
     }
   } catch (error) {
+    debugLog(`[DEBUG] Error removing project: ${(error as Error).message}`);
     res.status(500).json({ error: (error as Error).message });
   }
 });

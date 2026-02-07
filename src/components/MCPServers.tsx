@@ -1,7 +1,6 @@
 // ==================== MCPServers Component ====================
 
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Zap, RefreshCw } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useToast } from './ui/Toast';
@@ -10,7 +9,6 @@ import { MCPServerCard } from './MCPServerCard';
 import { MCPToolBrowser } from './mcp/MCPToolBrowser';
 
 export function MCPServers() {
-  const { t } = useTranslation();
   const { data, testMcpConnection } = useAppStore();
   const { showToast } = useToast();
   const [testingServerId, setTestingServerId] = useState<string | null>(null);

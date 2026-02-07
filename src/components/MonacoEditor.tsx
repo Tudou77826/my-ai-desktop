@@ -12,7 +12,7 @@ interface MonacoEditorProps {
 }
 
 export const MonacoEditor = forwardRef<any, MonacoEditorProps>(
-  ({ value, onChange, language, height = '500px', onMount }, ref) => {
+  ({ value, onChange, language, height = '500px', onMount }, _ref) => {
     return (
       <Editor
         height={height}

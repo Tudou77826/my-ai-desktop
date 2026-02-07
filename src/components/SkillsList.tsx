@@ -12,8 +12,6 @@ import { SkillCard } from './SkillCard';
 import { SkillDetailDialog } from './SkillDetailDialog';
 import { SkillCreateWizard } from './skills/SkillCreateWizard';
 
-type FilterStatus = 'all' | 'enabled' | 'disabled';
-
 export function SkillsList() {
   const { t } = useTranslation();
   const { data, isLoading, toggleSkill, ui, setSearchQuery, setFilterStatus } = useAppStore();

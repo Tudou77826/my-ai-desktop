@@ -10,6 +10,7 @@ interface SkillDetailDialogProps {
     id: string;
     metadata?: {
       name?: string;
+      description?: string;
     };
     content?: string;
   } | null;
@@ -41,7 +42,7 @@ function renderMarkdown(content: string): { __html: string } {
   html = html.replace(/`(.+?)`/g, '<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-gray-800">$1</code>');
 
   // Code blocks
-  html = html.replace(/```(\w+)?\n([\s\S]+?)```/g, (match, lang, code) => {
+  html = html.replace(/```(\w+)?\n([\s\S]+?)```/g, (_match, _lang, code) => {
     return `<pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto my-4"><code class="text-sm font-mono">${code.trim()}</code></pre>`;
   });
 
