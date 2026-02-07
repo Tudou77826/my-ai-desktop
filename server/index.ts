@@ -1,13 +1,28 @@
 // ==================== Node.js Backend Server ====================
 // Express server for file system operations
 
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
-import { createWriteStream } from 'fs';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as os from 'os';
+import { createWriteStream, writeFile } from 'fs';
 import { validateConfig } from './validator';
+import {
+  getMcpTools,
+  getMcpResources,
+  testMcpTool,
+  getHealthHistory,
+  addHealthCheckPoint
+} from './handlers/mcp-tools';
+import {
+  parseSkillFrontmatter,
+  validateSkillFrontmatter,
+  createSkill,
+  testSkill,
+  getSkillTemplates
+} from './handlers/skill-manager';
+import { expandEnvVars, expandEnvVarsInObject, findEnvVarReferences } from './handlers/env-expander';
 
 const app = express();
 const PORT = 3001;
@@ -266,7 +281,8 @@ app.get('/api/data/all', async (req, res) => {
       results.projects = Array.from(scannedProjects.values());
 
       // Add manually added projects that weren't found during scanning
-      for (const projectPath of manuallyAddedProjects) {
+      const manualProjectsArray = Array.from(manuallyAddedProjects);
+      for (const projectPath of manualProjectsArray) {
         if (!scannedProjects.has(projectPath)) {
           try {
             const stats = await fs.stat(projectPath);
@@ -674,53 +690,52 @@ app.post('/api/skill/toggle', async (req, res) => {
 /**
  * Scan projects directory
  */
+const scanProjectsDirectory = async (dir: string, depth = 0, projects: any[] = []): Promise<void> => {
+  if (depth > 3) return; // Limit recursion depth
+
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+
+    const projectPath = path.join(dir, entry.name);
+    const claudePath = path.join(projectPath, '.claude');
+    const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
+
+    const hasClaude = await fileExists(claudePath);
+    const hasClaudeMd = await fileExists(claudeMdPath);
+
+    if (hasClaude || hasClaudeMd) {
+      // This is a ClaudeCode project
+      try {
+        const stats = await fs.stat(projectPath);
+
+        projects.push({
+          id: projectPath,
+          name: entry.name,
+          path: projectPath,
+          exists: true,
+          lastModified: stats.mtime,
+          hasClaudeConfig: hasClaude,
+          hasClaudeMd: hasClaudeMd
+        });
+      } catch {
+        // Skip if stat fails
+      }
+    } else {
+      // Recursively scan subdirectory
+      await scanProjectsDirectory(projectPath, depth + 1, projects);
+    }
+  }
+};
+
 app.get('/api/projects/scan', async (req, res) => {
   try {
     const { searchPath = '~' } = req.query;
     const expandedPath = expandPath(searchPath as string);
-    const projects = [];
+    const projects: any[] = [];
 
-    // Recursive scan function
-    async function scanDirectory(dir: string, depth = 0) {
-      if (depth > 3) return; // Limit recursion depth
-
-      const entries = await fs.readdir(dir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-
-        const projectPath = path.join(dir, entry.name);
-        const claudePath = path.join(projectPath, '.claude');
-        const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
-
-        const hasClaude = await fileExists(claudePath);
-        const hasClaudeMd = await fileExists(claudeMdPath);
-
-        if (hasClaude || hasClaudeMd) {
-          // This is a ClaudeCode project
-          try {
-            const stats = await fs.stat(projectPath);
-
-            projects.push({
-              id: projectPath,
-              name: entry.name,
-              path: projectPath,
-              exists: true,
-              lastModified: stats.mtime,
-              hasClaudeConfig: hasClaude,
-              hasClaudeMd: hasClaudeMd
-            });
-          } catch {
-            // Skip if stat fails
-          }
-        } else {
-          // Recursively scan subdirectory
-          await scanDirectory(projectPath, depth + 1);
-        }
-      }
-    }
-
-    await scanDirectory(expandedPath);
+    await scanProjectsDirectory(expandedPath, 0, projects);
     res.json(projects);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -826,6 +841,248 @@ app.post('/api/project/add', async (req, res) => {
       lastModified: (await fs.stat(expandedPath)).mtime,
       hasClaudeConfig: hasClaude,
       hasClaudeMd: hasClaudeMd,
+    });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// ==================== MCP Tools & Resources ====================
+
+/**
+ * Get MCP tools for a server
+ */
+app.get('/api/mcp/tools/:serverId', async (req, res) => {
+  try {
+    const { serverId } = req.params;
+
+    // Load MCP config to get server details
+    const mcpPath = expandPath('~/.mcp.json');
+    if (!(await fileExists(mcpPath))) {
+      return res.status(404).json({ error: 'MCP config not found' });
+    }
+
+    const content = await fs.readFile(mcpPath, 'utf-8');
+    const mcpConfig = JSON.parse(content);
+
+    const mcpServersObj = mcpConfig.mcpServers || {};
+    const serverConfig: any = mcpServersObj[serverId] || mcpServersObj[`mcpServers.${serverId}`];
+
+    if (!serverConfig) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    const transport = serverConfig.command ? 'stdio' : 'http';
+    const tools = await getMcpTools(serverId, {
+      transport,
+      command: serverConfig.command,
+      args: serverConfig.args,
+      url: serverConfig.url
+    });
+
+    res.json(tools);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * Get MCP resources for a server
+ */
+app.get('/api/mcp/resources/:serverId', async (req, res) => {
+  try {
+    const { serverId } = req.params;
+
+    // Load MCP config
+    const mcpPath = expandPath('~/.mcp.json');
+    if (!(await fileExists(mcpPath))) {
+      return res.status(404).json({ error: 'MCP config not found' });
+    }
+
+    const content = await fs.readFile(mcpPath, 'utf-8');
+    const mcpConfig = JSON.parse(content);
+
+    const mcpServersObj = mcpConfig.mcpServers || {};
+    const serverConfig: any = mcpServersObj[serverId] || mcpServersObj[`mcpServers.${serverId}`];
+
+    if (!serverConfig) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    const resources = await getMcpResources(serverId, serverConfig);
+
+    res.json(resources);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * Test an MCP tool
+ */
+app.post('/api/mcp/test-tool/:serverId', async (req, res) => {
+  try {
+    const { serverId } = req.params;
+    const { toolName, args } = req.body;
+
+    if (!toolName) {
+      return res.status(400).json({ error: 'toolName is required' });
+    }
+
+    // Load server config
+    const mcpPath = expandPath('~/.mcp.json');
+    const content = await fs.readFile(mcpPath, 'utf-8');
+    const mcpConfig = JSON.parse(content);
+
+    const mcpServersObj = mcpConfig.mcpServers || {};
+    const serverConfig: any = mcpServersObj[serverId] || mcpServersObj[`mcpServers.${serverId}`];
+
+    const transport = serverConfig?.command ? 'stdio' : 'http';
+
+    const result = await testMcpTool(serverId, toolName, args, {
+      transport,
+      command: serverConfig?.command,
+      args: serverConfig?.args,
+      url: serverConfig?.url
+    });
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * Get health check history
+ */
+app.get('/api/mcp/health-history/:serverId', (req, res) => {
+  try {
+    const { serverId } = req.params;
+    const history = getHealthHistory(serverId);
+    res.json(history);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// ==================== Skill Management ====================
+
+/**
+ * Get skill templates
+ */
+app.get('/api/skills/templates', (req, res) => {
+  try {
+    const templates = getSkillTemplates();
+    res.json(templates);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * Create a new skill
+ */
+app.post('/api/skills/create', async (req, res) => {
+  try {
+    const { scope, projectPath, skill } = req.body;
+
+    if (!scope || !skill || !skill.id) {
+      return res.status(400).json({ error: 'scope, skill.id, and skill are required' });
+    }
+
+    await createSkill(scope, projectPath, skill);
+
+    res.json({ success: true, path: skill.id });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * Validate skill frontmatter
+ */
+app.post('/api/skills/validate-frontmatter', (req, res) => {
+  try {
+    const { frontmatter } = req.body;
+
+    if (!frontmatter) {
+      return res.status(400).json({ error: 'frontmatter is required' });
+    }
+
+    let parsedFrontmatter = frontmatter;
+    if (typeof frontmatter === 'string') {
+      try {
+        parsedFrontmatter = JSON.parse(frontmatter);
+      } catch {
+        // Try YAML parsing
+        try {
+          parsedFrontmatter = require('js-yaml').load(frontmatter);
+        } catch {
+          return res.status(400).json({ error: 'Invalid frontmatter format' });
+        }
+      }
+    }
+
+    const result = validateSkillFrontmatter(parsedFrontmatter);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * Parse skill frontmatter from SKILL.md content
+ */
+app.post('/api/skills/parse-frontmatter', (req, res) => {
+  try {
+    const { content } = req.body;
+
+    if (!content) {
+      return res.status(400).json({ error: 'content is required' });
+    }
+
+    const frontmatter = parseSkillFrontmatter(content);
+    res.json({ frontmatter });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * Test a skill
+ */
+app.post('/api/skills/test/:skillId', async (req, res) => {
+  try {
+    const { skillId } = req.params;
+    const { arguments: args } = req.body;
+
+    const result = await testSkill(skillId, args || []);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// ==================== Environment Variables ====================
+
+/**
+ * Expand environment variables
+ */
+app.post('/api/env/expand', (req, res) => {
+  try {
+    const { value } = req.body;
+
+    if (value === undefined) {
+      return res.status(400).json({ error: 'value is required' });
+    }
+
+    const expanded = expandEnvVars(value);
+    const references = findEnvVarReferences(value);
+
+    res.json({
+      expanded,
+      references,
+      original: value
     });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });

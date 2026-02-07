@@ -1,5 +1,6 @@
 // ==================== Main App Component ====================
 
+import './lib/i18n'; // Initialize i18n
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -9,6 +10,8 @@ import { ProjectsList } from './components/ProjectsList';
 import { ConfigEditor } from './components/ConfigEditor';
 import { ToastProvider } from './components/ui/Toast';
 import { useAppStore } from './store/appStore';
+import { I18nextProvider } from 'react-i18next';
+import i18n from './lib/i18n';
 
 function AppContent() {
   const { selectedTab } = useAppStore();
@@ -50,9 +53,11 @@ function AppContent() {
 
 function App() {
   return (
-    <ToastProvider>
-      <AppContent />
-    </ToastProvider>
+    <I18nextProvider i18n={i18n}>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </I18nextProvider>
   );
 }
 

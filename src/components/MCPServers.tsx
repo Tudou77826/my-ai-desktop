@@ -1,16 +1,20 @@
 // ==================== MCPServers Component ====================
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Zap, RefreshCw } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useToast } from './ui/Toast';
 import { Button } from './ui/Button';
 import { MCPServerCard } from './MCPServerCard';
+import { MCPToolBrowser } from './mcp/MCPToolBrowser';
 
 export function MCPServers() {
+  const { t } = useTranslation();
   const { data, testMcpConnection } = useAppStore();
   const { showToast } = useToast();
   const [testingServerId, setTestingServerId] = useState<string | null>(null);
+  const [selectedServerForTools, setSelectedServerForTools] = useState<{ id: string; name: string } | null>(null);
 
   const handleToggle = async (serverId: string, enabled: boolean) => {
     try {
@@ -96,9 +100,27 @@ export function MCPServers() {
               server={server}
               onToggle={handleToggle}
               onTest={handleTest}
+              onBrowseTools={(serverId) => setSelectedServerForTools({ id: serverId, name: server.id })}
               testing={testingServerId === server.id}
             />
           ))}
+        </div>
+      )}
+
+      {/* Tool Browser Dialog */}
+      {selectedServerForTools && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <MCPToolBrowser
+              serverId={selectedServerForTools.id}
+              serverName={selectedServerForTools.name}
+            />
+            <div className="p-4 border-t border-gray-200 flex justify-end">
+              <Button onClick={() => setSelectedServerForTools(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

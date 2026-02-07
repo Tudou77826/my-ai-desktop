@@ -24,10 +24,11 @@ interface MCPServerCardProps {
   };
   onToggle: (serverId: string, enabled: boolean) => void;
   onTest: (serverId: string) => void;
+  onBrowseTools?: (serverId: string) => void;
   testing?: boolean;
 }
 
-export function MCPServerCard({ server, onToggle, onTest, testing = false }: MCPServerCardProps) {
+export function MCPServerCard({ server, onToggle, onTest, onBrowseTools, testing = false }: MCPServerCardProps) {
   // Get health status indicator
   const getHealthStatus = () => {
     if (!server.health) return { color: 'bg-gray-400', label: 'Not tested' };
@@ -114,7 +115,17 @@ export function MCPServerCard({ server, onToggle, onTest, testing = false }: MCP
       )}
 
       {/* Actions */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {onBrowseTools && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onBrowseTools(server.id)}
+            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+          >
+            Browse Tools
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"

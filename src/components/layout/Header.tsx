@@ -1,8 +1,10 @@
 // ==================== Header Component ====================
 
+import { useTranslation } from 'react-i18next';
 import { RefreshCw } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { Button } from '../ui/Button';
+import { LanguageSwitcher } from '../ui/LanguageSwitcher';
 import { formatRelativeTime } from '../../lib/utils';
 
 export function Header() {
@@ -24,6 +26,9 @@ export function Header() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-3">
+          {/* Language Switcher */}
+          <LanguageSwitcher />
+
           {/* Last refresh time */}
           {lastRefresh && (
             <span className="text-xs text-gray-500 hidden sm:block">

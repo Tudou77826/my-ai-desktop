@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import type { AppData } from '../types';
 import { api } from '../lib/api';
+import type { MCPTool, MCPResource, HealthCheckPoint, SkillTemplate, SkillTestResult } from '../lib/api';
 
 interface AppStore {
   // State
@@ -23,6 +24,19 @@ interface AppStore {
     isDirty: boolean;
   };
 
+  // Iteration 3: MCP State
+  mcpTools: Map<string, MCPTool[]>;
+  mcpResources: Map<string, MCPResource[]>;
+  mcpHealthHistory: Map<string, HealthCheckPoint[]>;
+
+  // Iteration 3: Skills State
+  skillTemplates: SkillTemplate[];
+  isCreatingSkill: boolean;
+  skillWizardStep: number;
+
+  // Iteration 3: Language
+  language: 'zh-CN' | 'en-US';
+
   // Actions
   loadData: () => Promise<void>;
   refreshData: () => Promise<void>;
@@ -39,6 +53,22 @@ interface AppStore {
   setSelectedConfigFile: (filePath: string | null) => void;
   setEditorContent: (content: string) => void;
   setIsDirty: (dirty: boolean) => void;
+
+  // Iteration 3: MCP Actions
+  loadMcpTools: (serverId: string) => Promise<void>;
+  loadMcpResources: (serverId: string) => Promise<void>;
+  testMcpTool: (serverId: string, toolName: string, args: any) => Promise<any>;
+  getMcpHealthHistory: (serverId: string) => Promise<void>;
+
+  // Iteration 3: Skill Actions
+  loadSkillTemplates: () => Promise<void>;
+  createSkill: (scope: 'global' | 'project', skill: any, projectPath?: string) => Promise<void>;
+  validateSkillFrontmatter: (frontmatter: any) => Promise<any>;
+  testSkill: (skillId: string, arguments_?: string[]) => Promise<SkillTestResult>;
+
+  // Iteration 3: Language Action
+  setLanguage: (language: 'zh-CN' | 'en-US') => void;
+  setSkillWizardStep: (step: number) => void;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -59,6 +89,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
     editorContent: '',
     isDirty: false,
   },
+
+  // Iteration 3: Initial state
+  mcpTools: new Map(),
+  mcpResources: new Map(),
+  mcpHealthHistory: new Map(),
+  skillTemplates: [],
+  isCreatingSkill: false,
+  skillWizardStep: 0,
+  language: 'zh-CN',
 
   // Actions
   loadData: async () => {
@@ -186,4 +225,109 @@ export const useAppStore = create<AppStore>((set, get) => ({
       });
     }
   },
+
+  // ==================== Iteration 3: MCP Actions ====================
+
+  loadMcpTools: async (serverId) => {
+    try {
+      const tools = await api.getMcpTools(serverId);
+      set((state) => {
+        const newMap = new Map(state.mcpTools);
+        newMap.set(serverId, tools);
+        return { mcpTools: newMap };
+      });
+    } catch (error) {
+      set({ error: (error as Error).message });
+    }
+  },
+
+  loadMcpResources: async (serverId) => {
+    try {
+      const resources = await api.getMcpResources(serverId);
+      set((state) => {
+        const newMap = new Map(state.mcpResources);
+        newMap.set(serverId, resources);
+        return { mcpResources: newMap };
+      });
+    } catch (error) {
+      set({ error: (error as Error).message });
+    }
+  },
+
+  testMcpTool: async (serverId, toolName, args) => {
+    try {
+      return await api.testMcpTool(serverId, toolName, args);
+    } catch (error) {
+      set({ error: (error as Error).message });
+      throw error;
+    }
+  },
+
+  getMcpHealthHistory: async (serverId) => {
+    try {
+      const history = await api.getMcpHealthHistory(serverId);
+      set((state) => {
+        const newMap = new Map(state.mcpHealthHistory);
+        newMap.set(serverId, history);
+        return { mcpHealthHistory: newMap };
+      });
+    } catch (error) {
+      set({ error: (error as Error).message });
+    }
+  },
+
+  // ==================== Iteration 3: Skill Actions ====================
+
+  loadSkillTemplates: async () => {
+    try {
+      const templates = await api.getSkillTemplates();
+      set({ skillTemplates: templates });
+    } catch (error) {
+      set({ error: (error as Error).message });
+    }
+  },
+
+  createSkill: async (scope, skill, projectPath) => {
+    set({ isCreatingSkill: true, error: null });
+    try {
+      await api.createSkill(scope, skill, projectPath);
+      set({ isCreatingSkill: false, skillWizardStep: 0 });
+
+      // Reload data to get the new skill
+      await get().loadData();
+    } catch (error) {
+      set({
+        error: (error as Error).message,
+        isCreatingSkill: false,
+      });
+      throw error;
+    }
+  },
+
+  validateSkillFrontmatter: async (frontmatter) => {
+    try {
+      return await api.validateSkillFrontmatter(frontmatter);
+    } catch (error) {
+      set({ error: (error as Error).message });
+      throw error;
+    }
+  },
+
+  testSkill: async (skillId, arguments_) => {
+    try {
+      return await api.testSkill(skillId, arguments_);
+    } catch (error) {
+      set({ error: (error as Error).message });
+      throw error;
+    }
+  },
+
+  // ==================== Iteration 3: Language Actions ====================
+
+  setLanguage: (language) => {
+    set({ language });
+    localStorage.setItem('language', language);
+  },
+
+  setSkillWizardStep: (step) => set({ skillWizardStep: step }),
 }));

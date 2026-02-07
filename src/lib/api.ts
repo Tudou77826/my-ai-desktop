@@ -5,6 +5,49 @@ import type { AppData, ConfigFile, HealthStatus, ValidationResult } from '../typ
 
 const API_BASE = 'http://localhost:3001/api';
 
+// ==================== New Types for Iteration 3 ====================
+export interface MCPTool {
+  name: string;
+  description?: string;
+  inputSchema?: object;
+  permissionStatus: 'allowed' | 'blocked' | 'default';
+}
+
+export interface MCPResource {
+  uri: string;
+  name?: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface HealthCheckPoint {
+  timestamp: Date;
+  status: 'ok' | 'error' | 'unknown';
+  latency?: number;
+}
+
+export interface SkillTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: 'productivity' | 'development' | 'automation' | 'custom';
+  frontmatter: any;
+  content: string;
+}
+
+export interface SkillTestResult {
+  success: boolean;
+  output?: string;
+  error?: string;
+  executionTime?: number;
+}
+
+export interface EnvVarResult {
+  expanded: string;
+  references: string[];
+  original: string;
+}
+
 /**
  * Helper function for API calls
  */
@@ -171,6 +214,104 @@ export const api = {
     return apiCall('/project/add', {
       method: 'POST',
       body: JSON.stringify({ projectPath }),
+    });
+  },
+
+  // ==================== MCP Tools & Resources (Iteration 3) ====================
+
+  /**
+   * Get MCP tools for a server
+   */
+  async getMcpTools(serverId: string): Promise<MCPTool[]> {
+    return apiCall(`/mcp/tools/${encodeURIComponent(serverId)}`);
+  },
+
+  /**
+   * Get MCP resources for a server
+   */
+  async getMcpResources(serverId: string): Promise<MCPResource[]> {
+    return apiCall(`/mcp/resources/${encodeURIComponent(serverId)}`);
+  },
+
+  /**
+   * Test an MCP tool
+   */
+  async testMcpTool(serverId: string, toolName: string, args: any): Promise<any> {
+    return apiCall(`/mcp/test-tool/${encodeURIComponent(serverId)}`, {
+      method: 'POST',
+      body: JSON.stringify({ toolName, args }),
+    });
+  },
+
+  /**
+   * Get MCP health check history
+   */
+  async getMcpHealthHistory(serverId: string): Promise<HealthCheckPoint[]> {
+    return apiCall(`/mcp/health-history/${encodeURIComponent(serverId)}`);
+  },
+
+  // ==================== Skill Management (Iteration 3) ====================
+
+  /**
+   * Get skill templates
+   */
+  async getSkillTemplates(): Promise<SkillTemplate[]> {
+    return apiCall('/skills/templates');
+  },
+
+  /**
+   * Create a new skill
+   */
+  async createSkill(
+    scope: 'global' | 'project',
+    skill: any,
+    projectPath?: string
+  ): Promise<{ success: boolean; path: string }> {
+    return apiCall('/skills/create', {
+      method: 'POST',
+      body: JSON.stringify({ scope, projectPath, skill }),
+    });
+  },
+
+  /**
+   * Validate skill frontmatter
+   */
+  async validateSkillFrontmatter(frontmatter: any): Promise<ValidationResult> {
+    return apiCall('/skills/validate-frontmatter', {
+      method: 'POST',
+      body: JSON.stringify({ frontmatter }),
+    });
+  },
+
+  /**
+   * Parse skill frontmatter from SKILL.md content
+   */
+  async parseSkillFrontmatter(content: string): Promise<{ frontmatter: any }> {
+    return apiCall('/skills/parse-frontmatter', {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  },
+
+  /**
+   * Test a skill
+   */
+  async testSkill(skillId: string, arguments_?: string[]): Promise<SkillTestResult> {
+    return apiCall(`/skills/test/${encodeURIComponent(skillId)}`, {
+      method: 'POST',
+      body: JSON.stringify({ arguments: arguments_ }),
+    });
+  },
+
+  // ==================== Environment Variables (Iteration 3) ====================
+
+  /**
+   * Expand environment variables
+   */
+  async expandEnvVars(value: string): Promise<EnvVarResult> {
+    return apiCall('/env/expand', {
+      method: 'POST',
+      body: JSON.stringify({ value }),
     });
   },
 };

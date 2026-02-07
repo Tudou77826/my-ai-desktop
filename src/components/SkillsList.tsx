@@ -1,7 +1,8 @@
 // ==================== SkillsList Component ====================
 
 import { useEffect, useState, useMemo } from 'react';
-import { Search, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Search, RefreshCw, Plus } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useToast } from './ui/Toast';
 import { Input } from './ui/Input';
@@ -9,14 +10,17 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { SkillCard } from './SkillCard';
 import { SkillDetailDialog } from './SkillDetailDialog';
+import { SkillCreateWizard } from './skills/SkillCreateWizard';
 
 type FilterStatus = 'all' | 'enabled' | 'disabled';
 
 export function SkillsList() {
+  const { t } = useTranslation();
   const { data, isLoading, toggleSkill, ui, setSearchQuery, setFilterStatus } = useAppStore();
   const { showToast } = useToast();
 
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+  const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState(ui.searchQuery);
 
   // Debounce search query
@@ -96,12 +100,21 @@ export function SkillsList() {
         {/* Search */}
         <div className="flex-1">
           <Input
-            placeholder="Search skills..."
+            placeholder={t('common.search')}
             showSearchIcon
             value={ui.searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
+
+        {/* Create Skill Button */}
+        <Button
+          onClick={() => setShowCreateWizard(true)}
+          className="bg-amber-600 hover:bg-amber-700 flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          {t('skills.createSkill')}
+        </Button>
 
         {/* Refresh Button */}
         <Button
@@ -111,7 +124,7 @@ export function SkillsList() {
           className="flex items-center gap-2"
         >
           <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('common.refresh')}
         </Button>
       </div>
 
@@ -169,6 +182,14 @@ export function SkillsList() {
         onOpenChange={(open) => !open && setSelectedSkillId(null)}
         skill={selectedSkill}
       />
+
+      {/* Create Skill Wizard */}
+      {showCreateWizard && (
+        <SkillCreateWizard
+          onClose={() => setShowCreateWizard(false)}
+          scope="global"
+        />
+      )}
     </div>
   );
 }
