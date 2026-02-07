@@ -688,55 +688,163 @@ app.post('/api/skill/toggle', async (req, res) => {
 });
 
 /**
- * Scan projects directory
+ * Directories to skip during project scanning
+ */
+const SKIP_DIRECTORIES = new Set([
+  'node_modules',
+  '.git',
+  '.svn',
+  '.hg',
+  'bower_components',
+  'dist',
+  'build',
+  'target',
+  'bin',
+  'obj',
+  '.vs',
+  '.vscode',
+  'coverage',
+  '.next',
+  '.nuxt',
+  'tmp',
+  'temp',
+  '$RECYCLE.BIN',
+  'System Volume Information',
+  'Windows',
+  'Program Files',
+  'Program Files (x86)',
+  'ProgramData',
+]);
+
+/**
+ * Check if a directory should be skipped
+ */
+const shouldSkipDirectory = (dirName: string): boolean => {
+  return SKIP_DIRECTORIES.has(dirName) || dirName.startsWith('.');
+};
+
+/**
+ * Check if a full path should be skipped
+ */
+const shouldSkipPath = (fullPath: string): boolean => {
+  const normalizedPath = path.normalize(fullPath);
+  const parts = normalizedPath.split(path.sep);
+
+  // Check if any part of the path should be skipped
+  for (const part of parts) {
+    if (shouldSkipDirectory(part)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+/**
+ * Scan projects directory with improved filtering
  */
 const scanProjectsDirectory = async (dir: string, depth = 0, projects: any[] = []): Promise<void> => {
-  if (depth > 3) return; // Limit recursion depth
+  if (depth > 4) return; // Increased from 3 to 4 for deeper scanning
 
-  const entries = await fs.readdir(dir, { withFileTypes: true });
+  // Check if the current directory path should be skipped
+  if (shouldSkipPath(dir)) {
+    return;
+  }
 
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
 
-    const projectPath = path.join(dir, entry.name);
-    const claudePath = path.join(projectPath, '.claude');
-    const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
 
-    const hasClaude = await fileExists(claudePath);
-    const hasClaudeMd = await fileExists(claudeMdPath);
+      // Skip certain directories
+      if (shouldSkipDirectory(entry.name)) continue;
 
-    if (hasClaude || hasClaudeMd) {
-      // This is a ClaudeCode project
-      try {
-        const stats = await fs.stat(projectPath);
+      const projectPath = path.join(dir, entry.name);
 
-        projects.push({
-          id: projectPath,
-          name: entry.name,
-          path: projectPath,
-          exists: true,
-          lastModified: stats.mtime,
-          hasClaudeConfig: hasClaude,
-          hasClaudeMd: hasClaudeMd
-        });
-      } catch {
-        // Skip if stat fails
+      // Double-check the full path before proceeding
+      if (shouldSkipPath(projectPath)) continue;
+
+      const claudePath = path.join(projectPath, '.claude');
+      const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
+
+      const hasClaude = await fileExists(claudePath);
+      const hasClaudeMd = await fileExists(claudeMdPath);
+
+      if (hasClaude || hasClaudeMd) {
+        // This is a ClaudeCode project
+        try {
+          const stats = await fs.stat(projectPath);
+
+          projects.push({
+            id: projectPath,
+            name: entry.name,
+            path: projectPath,
+            exists: true,
+            lastModified: stats.mtime,
+            hasClaudeConfig: hasClaude,
+            hasClaudeMd: hasClaudeMd
+          });
+        } catch {
+          // Skip if stat fails
+        }
+      } else {
+        // Recursively scan subdirectory
+        await scanProjectsDirectory(projectPath, depth + 1, projects);
       }
-    } else {
-      // Recursively scan subdirectory
-      await scanProjectsDirectory(projectPath, depth + 1, projects);
     }
+  } catch (error) {
+    // Skip directories we can't read (permission denied, etc.)
+    console.error(`[DEBUG] Failed to scan directory ${dir}: ${(error as Error).message}`);
   }
 };
 
 app.get('/api/projects/scan', async (req, res) => {
   try {
-    const { searchPath = '~' } = req.query;
-    const expandedPath = expandPath(searchPath as string);
+    const { searchPath } = req.query;
     const projects: any[] = [];
+    const scannedPaths: string[] = [];
 
-    await scanProjectsDirectory(expandedPath, 0, projects);
-    res.json(projects);
+    // Default scan paths for Windows
+    const defaultPaths = ['~', 'D:\\', 'D:\\dev', 'D:\\projects', 'C:\\dev', 'C:\\projects'];
+
+    let pathsToScan: string[];
+    if (searchPath && typeof searchPath === 'string') {
+      // Support comma or semicolon separated paths
+      pathsToScan = searchPath.split(/[;,]/).map(p => p.trim()).filter(Boolean);
+    } else {
+      pathsToScan = defaultPaths;
+    }
+
+    // Scan each path
+    for (const searchPath of pathsToScan) {
+      try {
+        const expandedPath = expandPath(searchPath);
+        scannedPaths.push(expandedPath);
+
+        // Check if path exists and is a directory
+        const stats = await fs.stat(expandedPath).catch(() => null);
+        if (!stats || !stats.isDirectory()) {
+          console.error(`[DEBUG] Path does not exist or is not a directory: ${expandedPath}`);
+          continue;
+        }
+
+        await scanProjectsDirectory(expandedPath, 0, projects);
+      } catch (error) {
+        console.error(`[DEBUG] Failed to scan ${searchPath}: ${(error as Error).message}`);
+      }
+    }
+
+    // Remove duplicates based on path
+    const uniqueProjects = Array.from(
+      new Map(projects.map(p => [p.path, p])).values()
+    );
+
+    res.json({
+      projects: uniqueProjects,
+      scannedPaths,
+      count: uniqueProjects.length
+    });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

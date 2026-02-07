@@ -1,7 +1,7 @@
 // ==================== ProjectsList Component ====================
 
 import { useEffect, useState, useMemo } from 'react';
-import { Folder, Search, RefreshCw, Plus } from 'lucide-react';
+import { Folder, Search, RefreshCw, Plus, HardDrive } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useToast } from './ui/Toast';
 import { Input } from './ui/Input';
@@ -11,10 +11,20 @@ import { ProjectDetailDialog } from './ProjectDetailDialog';
 import { Dialog } from './ui/Dialog';
 import { api } from '../lib/api';
 
+// Common scan paths for Windows
+const COMMON_SCAN_PATHS = [
+  { label: 'Home', path: '~' },
+  { label: 'D:\\', path: 'D:\\' },
+  { label: 'D:\\dev', path: 'D:\\dev' },
+  { label: 'D:\\projects', path: 'D:\\projects' },
+  { label: 'C:\\dev', path: 'C:\\dev' },
+  { label: 'C:\\projects', path: 'C:\\projects' },
+];
+
 export function ProjectsList() {
   const { data, isLoading, ui, setSearchQuery, loadData } = useAppStore();
   const { showToast } = useToast();
-  const [searchPath, setSearchPath] = useState('~');
+  const [selectedScanPaths, setSelectedScanPaths] = useState<string[]>(['~']);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedProjectDetail, setSelectedProjectDetail] = useState<any>(null);
   const [debouncedQuery, setDebouncedQuery] = useState(ui.searchQuery);
@@ -22,6 +32,7 @@ export function ProjectsList() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newProjectPath, setNewProjectPath] = useState('');
   const [addingProject, setAddingProject] = useState(false);
+  const [lastScanResult, setLastScanResult] = useState<{ count: number; scannedPaths: string[] } | null>(null);
 
   // Debounce search query
   useEffect(() => {
@@ -50,13 +61,37 @@ export function ProjectsList() {
     return projects;
   }, [data?.projects, debouncedQuery]);
 
-  const handleScan = async () => {
+  const handleScan = async (paths?: string[]) => {
+    const pathsToScan = paths || selectedScanPaths;
+    if (pathsToScan.length === 0) {
+      showToast('Please select at least one path to scan', 'error');
+      return;
+    }
+
     setScanning(true);
     try {
-      await api.scanProjects(searchPath);
+      const searchPath = pathsToScan.join(',');
+      const result: any = await api.scanProjects(searchPath);
+
+      // Handle new response format
+      if (result && typeof result === 'object' && 'projects' in result) {
+        setLastScanResult({
+          count: result.count || result.projects?.length || 0,
+          scannedPaths: result.scannedPaths || []
+        });
+        showToast(`Found ${result.count || 0} projects in ${result.scannedPaths?.length || 0} paths`, 'success');
+      } else {
+        // Legacy format (array of projects)
+        const projects = Array.isArray(result) ? result : [];
+        setLastScanResult({
+          count: projects.length,
+          scannedPaths: pathsToScan
+        });
+        showToast(`Found ${projects.length} projects`, 'success');
+      }
+
       // Reload data
       await loadData();
-      showToast(`Projects scanned from ${searchPath}`, 'success');
     } catch (error) {
       showToast(`Failed to scan projects: ${(error as Error).message}`, 'error');
     } finally {
@@ -111,66 +146,91 @@ export function ProjectsList() {
     }
   };
 
+  const toggleScanPath = (path: string) => {
+    setSelectedScanPaths(prev =>
+      prev.includes(path)
+        ? prev.filter(p => p !== path)
+        : [...prev, path]
+    );
+  };
+
   return (
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Projects</h1>
         <p className="text-gray-600">Manage your ClaudeCode projects</p>
+        {lastScanResult && (
+          <p className="text-sm text-gray-500 mt-1">
+            Last scan: {lastScanResult.count} projects found in {lastScanResult.scannedPaths.length} paths
+          </p>
+        )}
       </div>
 
       {/* Controls Bar */}
-      <div className="flex items-center gap-4 mb-6">
-        {/* Search */}
-        <div className="flex-1">
-          <Input
-            placeholder="Search projects..."
-            showSearchIcon
-            value={ui.searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      <div className="mb-6">
+        {/* Search and Path Selection Row */}
+        <div className="flex items-center gap-4 mb-4">
+          {/* Search */}
+          <div className="flex-1">
+            <Input
+              placeholder="Search projects..."
+              showSearchIcon
+              value={ui.searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          {/* Add Project Button */}
+          <Button
+            variant="primary"
+            onClick={() => setShowAddDialog(true)}
+            className="flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Project
+          </Button>
+
+          {/* Refresh Button */}
+          <Button
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
-        {/* Scan Path Input */}
-        <div className="w-48">
-          <Input
-            placeholder="Scan path (e.g., ~)"
-            value={searchPath}
-            onChange={(e) => setSearchPath(e.target.value)}
-          />
+        {/* Scan Paths Selection */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
+            <HardDrive className="w-4 h-4" />
+            Scan paths:
+          </span>
+          {COMMON_SCAN_PATHS.map(({ label, path }) => (
+            <Button
+              key={path}
+              variant={selectedScanPaths.includes(path) ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => toggleScanPath(path)}
+              className="text-xs"
+            >
+              {label}
+            </Button>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleScan()}
+            disabled={scanning || isLoading}
+            className="flex items-center gap-2"
+          >
+            <Folder className={`w-4 h-4 ${scanning ? 'animate-pulse' : ''}`} />
+            {scanning ? 'Scanning...' : `Scan (${selectedScanPaths.length})`}
+          </Button>
         </div>
-
-        {/* Add Project Button */}
-        <Button
-          variant="primary"
-          onClick={() => setShowAddDialog(true)}
-          className="flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Add Project
-        </Button>
-
-        {/* Scan Button */}
-        <Button
-          variant="outline"
-          onClick={handleScan}
-          disabled={scanning || isLoading}
-          className="flex items-center gap-2"
-        >
-          <Folder className={`w-4 h-4 ${scanning ? 'animate-pulse' : ''}`} />
-          {scanning ? 'Scanning...' : 'Scan'}
-        </Button>
-
-        {/* Refresh Button */}
-        <Button
-          variant="outline"
-          onClick={handleRefresh}
-          disabled={isLoading}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
       </div>
 
       {/* Projects Grid */}
@@ -185,7 +245,7 @@ export function ProjectsList() {
           <p className="text-sm text-gray-400 mt-2">
             {debouncedQuery
               ? 'Try a different search term'
-              : 'Projects are automatically scanned. Click "Add Project" to manually add a project path.'}
+              : 'Select scan paths above and click "Scan" to discover projects, or click "Add Project" to manually add a project path.'}
           </p>
         </div>
       ) : (
@@ -246,6 +306,7 @@ export function ProjectsList() {
             <p>Examples:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><code>~/projects/my-app</code></li>
+              <li><code>D:\dev\my-project</code></li>
               <li><code>C:\Users\YourName\Documents\project</code></li>
               <li><code>/home/user/workspace/app</code></li>
             </ul>
