@@ -1,7 +1,7 @@
 // ==================== MCP Tool Browser Component ====================
 
 import { useState, useEffect } from 'react';
-import { Search, Tool, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Search, Wrench, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { api } from '../../lib/api';
 import type { MCPTool } from '../../lib/api';
@@ -122,7 +122,7 @@ export function MCPToolBrowser({ serverId, serverName }: MCPToolBrowserProps) {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <Tool className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <Wrench className="w-4 h-4 text-amber-600 flex-shrink-0" />
                     <h4 className="font-medium text-gray-900">{tool.name}</h4>
                     {getPermissionIcon(tool.permissionStatus)}
                   </div>

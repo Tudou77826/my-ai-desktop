@@ -32,14 +32,27 @@ export default {
 
   // Dashboard
   dashboard: {
-    title: 'Dashboard',
-    overview: 'Overview',
+    title: 'Configuration Overview',
+    overview: 'Manage your ClaudeCode configurations',
     stats: {
-      totalSkills: 'Total Skills',
+      totalSkills: 'Skills',
       enabledSkills: 'Enabled Skills',
-      totalMcpServers: 'Total MCP Servers',
+      totalMcpServers: 'MCP Servers',
       enabledMcpServers: 'Enabled MCP Servers',
-      totalProjects: 'Total Projects',
+      totalProjects: 'Projects',
+      totalConfigFiles: 'Config Files',
+    },
+    healthStatus: {
+      title: 'Configuration Health Status',
+      normal: 'Application is running normally',
+      skillsLoaded: '{{count}} Skills loaded',
+      mcpServersConfigured: '{{count}} MCP Servers configured',
+    },
+    quickStart: {
+      title: 'Quick Start',
+      tip1: '• Use the left navigation to switch between different features',
+      tip2: '• Click "Refresh" button to reload configurations',
+      tip3: '• All changes will automatically create backups',
     },
   },
 

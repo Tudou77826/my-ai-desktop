@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import type { AppData } from '../types';
 import { api } from '../lib/api';
 import type { MCPTool, MCPResource, HealthCheckPoint, SkillTemplate, SkillTestResult } from '../lib/api';
+import i18n from '../lib/i18n';
 
 interface AppStore {
   // State
@@ -327,6 +328,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setLanguage: (language) => {
     set({ language });
     localStorage.setItem('language', language);
+    i18n.changeLanguage(language);
   },
 
   setSkillWizardStep: (step) => set({ skillWizardStep: step }),

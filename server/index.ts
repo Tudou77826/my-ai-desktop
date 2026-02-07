@@ -1010,11 +1010,22 @@ app.post('/api/skills/validate-frontmatter', (req, res) => {
     }
 
     let parsedFrontmatter = frontmatter;
-    if (typeof frontmatter === 'string') {
+
+    // If frontmatter is a string with --- delimiters, use parseSkillFrontmatter
+    if (typeof frontmatter === 'string' && frontmatter.includes('---')) {
+      try {
+        parsedFrontmatter = parseSkillFrontmatter(frontmatter);
+        if (!parsedFrontmatter) {
+          return res.status(400).json({ error: 'Invalid frontmatter format' });
+        }
+      } catch (error: any) {
+        return res.status(400).json({ error: 'Invalid frontmatter format', details: (error as Error).message });
+      }
+    } else if (typeof frontmatter === 'string') {
+      // Try to parse as YAML or JSON
       try {
         parsedFrontmatter = JSON.parse(frontmatter);
       } catch {
-        // Try YAML parsing
         try {
           parsedFrontmatter = require('js-yaml').load(frontmatter);
         } catch {
@@ -1025,7 +1036,7 @@ app.post('/api/skills/validate-frontmatter', (req, res) => {
 
     const result = validateSkillFrontmatter(parsedFrontmatter);
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
     res.status(500).json({ error: (error as Error).message });
   }
 });

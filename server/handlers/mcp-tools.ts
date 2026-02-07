@@ -44,14 +44,10 @@ export async function getMcpTools(serverId: string, serverConfig: any): Promise<
     return getMockHttpTools(serverId, url);
   }
 
-  // For stdio transport, try to spawn the process and call tools/list
-  if (transport === 'stdio' && command) {
-    try {
-      return await getStdioTools(command, args || []);
-    } catch (error) {
-      console.error(`Failed to get stdio tools for ${serverId}:`, error);
-      return getMockTools(serverId);
-    }
+  // For stdio transport, return mock data directly (real connection is complex)
+  if (transport === 'stdio') {
+    console.log(`[MCP Tools] Using mock data for stdio server: ${serverId}`);
+    return getMockTools(serverId);
   }
 
   // Default to mock data
@@ -244,15 +240,87 @@ function getMockTools(serverId: string): MCPTool[] {
         description: 'Add a comment to an issue or PR',
         permissionStatus: 'blocked'
       }
+    ],
+    'figma': [
+      {
+        name: 'get_file',
+        description: 'Get Figma file details and metadata',
+        permissionStatus: 'allowed'
+      },
+      {
+        name: 'get_components',
+        description: 'List all components in a Figma file',
+        permissionStatus: 'allowed'
+      },
+      {
+        name: 'export_frame',
+        description: 'Export a frame as PNG or SVG',
+        permissionStatus: 'allowed'
+      },
+      {
+        name: 'get_node',
+        description: 'Get detailed node information',
+        permissionStatus: 'allowed'
+      }
+    ],
+    'chrome-devtools': [
+      {
+        name: 'navigate',
+        description: 'Navigate to a URL',
+        permissionStatus: 'allowed'
+      },
+      {
+        name: 'snapshot',
+        description: 'Take a snapshot of the page',
+        permissionStatus: 'allowed'
+      },
+      {
+        name: 'click',
+        description: 'Click an element on the page',
+        permissionStatus: 'allowed'
+      },
+      {
+        name: 'fill',
+        description: 'Fill an input field',
+        permissionStatus: 'allowed'
+      },
+      {
+        name: 'evaluate',
+        description: 'Execute JavaScript in the page',
+        permissionStatus: 'allowed'
+      }
     ]
   };
 
-  // Try to match by server ID or return generic tools
-  return mockToolsMap[serverId] || [
+  // Try to match by server ID
+  if (mockToolsMap[serverId]) {
+    return mockToolsMap[serverId];
+  }
+
+  // Check for partial matches (e.g., 'figma-developer-mcp' contains 'figma')
+  for (const [key, tools] of Object.entries(mockToolsMap)) {
+    if (serverId.includes(key) || key.includes(serverId)) {
+      console.log(`[MCP Tools] Partial match: ${serverId} -> ${key}`);
+      return tools;
+    }
+  }
+
+  // Return generic tools as fallback
+  return [
     {
-      name: 'generic_tool_1',
-      description: 'Generic MCP tool',
+      name: 'mcp_tool_1',
+      description: `${serverId} tool #1 - Mock MCP tool`,
+      permissionStatus: 'allowed'
+    },
+    {
+      name: 'mcp_tool_2',
+      description: `${serverId} tool #2 - Mock MCP tool`,
       permissionStatus: 'default'
+    },
+    {
+      name: 'mcp_tool_3',
+      description: `${serverId} tool #3 - Mock MCP tool`,
+      permissionStatus: 'allowed'
     }
   ];
 }

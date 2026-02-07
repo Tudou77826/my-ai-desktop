@@ -32,14 +32,27 @@ export default {
 
   // Dashboard
   dashboard: {
-    title: '仪表盘',
-    overview: '总览',
+    title: '配置概览',
+    overview: '管理您的 ClaudeCode 配置',
     stats: {
-      totalSkills: 'Skills 总数',
+      totalSkills: 'Skills',
       enabledSkills: '已启用 Skills',
-      totalMcpServers: 'MCP 服务器总数',
+      totalMcpServers: 'MCP 服务器',
       enabledMcpServers: '已启用 MCP 服务器',
-      totalProjects: '项目总数',
+      totalProjects: '项目',
+      totalConfigFiles: '配置文件',
+    },
+    healthStatus: {
+      title: '配置健康状态',
+      normal: '应用运行正常',
+      skillsLoaded: '已加载 {{count}} 个 Skills',
+      mcpServersConfigured: '已配置 {{count}} 个 MCP 服务器',
+    },
+    quickStart: {
+      title: '快速开始',
+      tip1: '• 使用左侧导航栏切换不同功能',
+      tip2: '• 点击"刷新"按钮重新加载配置',
+      tip3: '• 所有修改都会自动创建备份',
     },
   },
 
