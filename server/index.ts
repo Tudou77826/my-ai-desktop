@@ -955,6 +955,74 @@ app.post('/api/project/add', async (req, res) => {
   }
 });
 
+/**
+ * Import multiple projects from scan results
+ */
+app.post('/api/projects/import', async (req, res) => {
+  try {
+    const { projects } = req.body;
+
+    if (!Array.isArray(projects)) {
+      return res.status(400).json({ error: 'projects must be an array' });
+    }
+
+    let addedCount = 0;
+    let skippedCount = 0;
+    const results: any[] = [];
+
+    for (const project of projects) {
+      const projectPath = project.path || project;
+
+      if (!projectPath || typeof projectPath !== 'string') {
+        skippedCount++;
+        continue;
+      }
+
+      // Skip if already added
+      if (manuallyAddedProjects.has(projectPath)) {
+        skippedCount++;
+        results.push({
+          path: projectPath,
+          status: 'skipped',
+          reason: 'Already added'
+        });
+        continue;
+      }
+
+      // Verify the project still exists
+      if (!(await fileExists(projectPath))) {
+        skippedCount++;
+        results.push({
+          path: projectPath,
+          status: 'skipped',
+          reason: 'Path does not exist'
+        });
+        continue;
+      }
+
+      // Add to manually added projects
+      manuallyAddedProjects.add(projectPath);
+      addedCount++;
+      results.push({
+        path: projectPath,
+        status: 'added'
+      });
+    }
+
+    // Save to file
+    await saveManualProjects();
+
+    res.json({
+      added: addedCount,
+      skipped: skippedCount,
+      total: projects.length,
+      results
+    });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // ==================== MCP Tools & Resources ====================
 
 /**

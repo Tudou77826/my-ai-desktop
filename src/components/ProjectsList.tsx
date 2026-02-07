@@ -1,7 +1,7 @@
 // ==================== ProjectsList Component ====================
 
 import { useEffect, useState, useMemo } from 'react';
-import { Folder, Search, RefreshCw, Plus, HardDrive } from 'lucide-react';
+import { Folder, Search, RefreshCw, Plus, HardDrive, Download } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useToast } from './ui/Toast';
 import { Input } from './ui/Input';
@@ -32,7 +32,8 @@ export function ProjectsList() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newProjectPath, setNewProjectPath] = useState('');
   const [addingProject, setAddingProject] = useState(false);
-  const [lastScanResult, setLastScanResult] = useState<{ count: number; scannedPaths: string[] } | null>(null);
+  const [lastScanResult, setLastScanResult] = useState<{ count: number; scannedPaths: string[]; projects: any[] } | null>(null);
+  const [importing, setImporting] = useState(false);
 
   // Debounce search query
   useEffect(() => {
@@ -77,7 +78,8 @@ export function ProjectsList() {
       if (result && typeof result === 'object' && 'projects' in result) {
         setLastScanResult({
           count: result.count || result.projects?.length || 0,
-          scannedPaths: result.scannedPaths || []
+          scannedPaths: result.scannedPaths || [],
+          projects: result.projects || []
         });
         showToast(`Found ${result.count || 0} projects in ${result.scannedPaths?.length || 0} paths`, 'success');
       } else {
@@ -85,7 +87,8 @@ export function ProjectsList() {
         const projects = Array.isArray(result) ? result : [];
         setLastScanResult({
           count: projects.length,
-          scannedPaths: pathsToScan
+          scannedPaths: pathsToScan,
+          projects
         });
         showToast(`Found ${projects.length} projects`, 'success');
       }
@@ -105,6 +108,30 @@ export function ProjectsList() {
       showToast('Projects refreshed', 'success');
     } catch (error) {
       showToast(`Failed to refresh: ${(error as Error).message}`, 'error');
+    }
+  };
+
+  const handleImportAll = async () => {
+    if (!lastScanResult?.projects || lastScanResult.projects.length === 0) {
+      showToast('No scan results to import', 'error');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const result = await api.importProjects(lastScanResult.projects);
+
+      showToast(`Imported ${result.added} projects (${result.skipped} skipped)`, 'success');
+
+      // Clear scan results after import
+      setLastScanResult(null);
+
+      // Reload data
+      await loadData();
+    } catch (error) {
+      showToast(`Failed to import projects: ${(error as Error).message}`, 'error');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -161,9 +188,26 @@ export function ProjectsList() {
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Projects</h1>
         <p className="text-gray-600">Manage your ClaudeCode projects</p>
         {lastScanResult && (
-          <p className="text-sm text-gray-500 mt-1">
-            Last scan: {lastScanResult.count} projects found in {lastScanResult.scannedPaths.length} paths
-          </p>
+          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-blue-900">
+                Found {lastScanResult.count} projects
+              </p>
+              <p className="text-xs text-blue-700">
+                Scanned {lastScanResult.scannedPaths.length} paths
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleImportAll}
+              disabled={importing}
+              className="flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              {importing ? 'Importing...' : 'Import All'}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -245,7 +289,7 @@ export function ProjectsList() {
           <p className="text-sm text-gray-400 mt-2">
             {debouncedQuery
               ? 'Try a different search term'
-              : 'Select scan paths above and click "Scan" to discover projects, or click "Add Project" to manually add a project path.'}
+              : 'Select scan paths above and click "Scan" to discover projects, then click "Import All" to add them.'}
           </p>
         </div>
       ) : (

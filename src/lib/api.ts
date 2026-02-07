@@ -217,6 +217,16 @@ export const api = {
     });
   },
 
+  /**
+   * Import multiple projects from scan results
+   */
+  async importProjects(projects: any[]): Promise<{ added: number; skipped: number; total: number; results: any[] }> {
+    return apiCall('/projects/import', {
+      method: 'POST',
+      body: JSON.stringify({ projects }),
+    });
+  },
+
   // ==================== MCP Tools & Resources (Iteration 3) ====================
 
   /**
