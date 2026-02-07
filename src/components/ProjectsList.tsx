@@ -11,20 +11,10 @@ import { ProjectDetailDialog } from './ProjectDetailDialog';
 import { Dialog } from './ui/Dialog';
 import { api } from '../lib/api';
 
-// Common scan paths for Windows
-const COMMON_SCAN_PATHS = [
-  { label: 'Home', path: '~' },
-  { label: 'D:\\', path: 'D:\\' },
-  { label: 'D:\\dev', path: 'D:\\dev' },
-  { label: 'D:\\projects', path: 'D:\\projects' },
-  { label: 'C:\\dev', path: 'C:\\dev' },
-  { label: 'C:\\projects', path: 'C:\\projects' },
-];
-
 export function ProjectsList() {
   const { data, isLoading, ui, setSearchQuery, loadData } = useAppStore();
   const { showToast } = useToast();
-  const [selectedScanPaths, setSelectedScanPaths] = useState<string[]>(['~']);
+  const [scanPathInput, setScanPathInput] = useState('D:\\dev');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedProjectDetail, setSelectedProjectDetail] = useState<any>(null);
   const [debouncedQuery, setDebouncedQuery] = useState(ui.searchQuery);
@@ -66,18 +56,17 @@ export function ProjectsList() {
     return projects;
   }, [data?.projects, debouncedQuery]);
 
-  const handleScan = async (paths?: string[]) => {
-    const pathsToScan = paths || selectedScanPaths;
-    if (pathsToScan.length === 0) {
-      showToast('Please select at least one path to scan', 'error');
+  const handleScan = async (customPath?: string) => {
+    const pathToScan = customPath || scanPathInput;
+    if (!pathToScan || pathToScan.trim() === '') {
+      showToast('Please enter a path to scan', 'error');
       return;
     }
 
     setScanning(true);
     setScanSummary(null);
     try {
-      const searchPath = pathsToScan.join(',');
-      const result: any = await api.scanProjects(searchPath);
+      const result: any = await api.scanProjects(pathToScan);
 
       // Handle new response format
       if (result && typeof result === 'object' && 'projects' in result) {
@@ -168,14 +157,6 @@ export function ProjectsList() {
     }
   };
 
-  const toggleScanPath = (path: string) => {
-    setSelectedScanPaths(prev =>
-      prev.includes(path)
-        ? prev.filter(p => p !== path)
-        : [...prev, path]
-    );
-  };
-
   const dismissScanSummary = () => {
     setScanSummary(null);
   };
@@ -242,23 +223,24 @@ export function ProjectsList() {
           </Button>
         </div>
 
-        {/* Scan Paths Selection */}
+        {/* Scan Path Input */}
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
             <HardDrive className="w-4 h-4" />
-            Scan paths:
+            Scan path:
           </span>
-          {COMMON_SCAN_PATHS.map(({ label, path }) => (
-            <Button
-              key={path}
-              variant={selectedScanPaths.includes(path) ? 'primary' : 'ghost'}
-              size="sm"
-              onClick={() => toggleScanPath(path)}
-              className="text-xs"
-            >
-              {label}
-            </Button>
-          ))}
+          <div className="flex-1 min-w-[300px] max-w-md">
+            <Input
+              placeholder="Enter path to scan (e.g., D:\dev or D:\dev,D:\projects)"
+              value={scanPathInput}
+              onChange={(e) => setScanPathInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleScan();
+                }
+              }}
+            />
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -267,7 +249,7 @@ export function ProjectsList() {
             className="flex items-center gap-2"
           >
             <Folder className={`w-4 h-4 ${scanning ? 'animate-pulse' : ''}`} />
-            {scanning ? 'Scanning...' : `Scan (${selectedScanPaths.length})`}
+            {scanning ? 'Scanning...' : 'Scan'}
           </Button>
         </div>
       </div>
@@ -284,7 +266,7 @@ export function ProjectsList() {
           <p className="text-sm text-gray-400 mt-2">
             {debouncedQuery
               ? 'Try a different search term'
-              : 'Select scan paths above and click "Scan" to discover and import projects.'}
+              : 'Enter a path above and click "Scan" to discover and import projects.'}
           </p>
         </div>
       ) : (
