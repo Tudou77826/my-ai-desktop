@@ -41,46 +41,74 @@ app.use(cors());
 app.use(express.json());
 
 // ==================== Persistent Storage ====================
-// Store manually added projects in a file
-const MANUAL_PROJECTS_FILE = path.join(os.homedir(), '.claude-config-manager-projects.json');
+// Store projects in a file with two lists: included and excluded
+const PROJECTS_FILE = path.join(os.homedir(), '.claude-config-manager-projects.json');
+
+interface ProjectListData {
+  included: string[];
+  excluded: string[];
+}
 
 let manuallyAddedProjects = new Set<string>();
+let excludedProjects = new Set<string>();
 
-// Load manually added projects from file on startup
-async function loadManualProjects() {
+// Load projects from file on startup
+async function loadProjects() {
   try {
-    if (await fileExists(MANUAL_PROJECTS_FILE)) {
-      const content = await fs.readFile(MANUAL_PROJECTS_FILE, 'utf-8');
-      const projects = JSON.parse(content);
-      // Normalize all paths to avoid duplicates due to different path formats
-      const normalizedProjects = projects.map((p: string) => path.normalize(p));
-      manuallyAddedProjects = new Set(normalizedProjects);
-      debugLog(`[DEBUG] Loaded ${manuallyAddedProjects.size} manual projects from file`);
-      // Debug: print first few paths
-      const samplePaths = Array.from(manuallyAddedProjects).slice(0, 3);
-      debugLog(`[DEBUG] Sample paths: ${JSON.stringify(samplePaths)}`);
+    if (await fileExists(PROJECTS_FILE)) {
+      const content = await fs.readFile(PROJECTS_FILE, 'utf-8');
+      const data = JSON.parse(content);
+
+      // Check if it's the new format (object with included/excluded) or old format (array)
+      if (data.included || data.excluded) {
+        // New format
+        const newData = data as ProjectListData;
+
+        // Load included projects
+        if (newData.included && Array.isArray(newData.included)) {
+          const normalizedIncluded = newData.included.map((p: string) => path.normalize(p));
+          manuallyAddedProjects = new Set(normalizedIncluded);
+        }
+
+        // Load excluded projects
+        if (newData.excluded && Array.isArray(newData.excluded)) {
+          const normalizedExcluded = newData.excluded.map((p: string) => path.normalize(p));
+          excludedProjects = new Set(normalizedExcluded);
+        }
+
+        debugLog(`[DEBUG] Loaded ${manuallyAddedProjects.size} included and ${excludedProjects.size} excluded projects (new format)`);
+      } else if (Array.isArray(data)) {
+        // Old format - migrate to new format
+        const projects = data as string[];
+        const normalizedProjects = projects.map((p: string) => path.normalize(p));
+        manuallyAddedProjects = new Set(normalizedProjects);
+        debugLog(`[DEBUG] Migrated ${manuallyAddedProjects.size} projects from old array format to new format`);
+        await saveProjects();
+      }
+    } else {
+      debugLog('[DEBUG] Projects file does not exist, starting with empty lists');
     }
   } catch (error) {
-    debugLog('[DEBUG] Failed to load manual projects:', (error as Error).message);
+    debugLog('[DEBUG] Failed to load projects:', (error as Error).message);
   }
 }
 
-// Save manually added projects to file
-async function saveManualProjects() {
+// Save projects to file
+async function saveProjects() {
   try {
-    // Normalize all paths before saving to avoid duplicates
-    const projects = Array.from(manuallyAddedProjects).map(p => path.normalize(p));
-    // Remove duplicates after normalization
-    const uniqueProjects = Array.from(new Set(projects));
-    await fs.writeFile(MANUAL_PROJECTS_FILE, JSON.stringify(uniqueProjects, null, 2), 'utf-8');
-    debugLog(`[DEBUG] Saved ${uniqueProjects.length} manual projects to file`);
+    const data: ProjectListData = {
+      included: Array.from(manuallyAddedProjects),
+      excluded: Array.from(excludedProjects),
+    };
+    await fs.writeFile(PROJECTS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    debugLog(`[DEBUG] Saved ${manuallyAddedProjects.size} included and ${excludedProjects.size} excluded projects`);
   } catch (error) {
-    debugLog('[DEBUG] Failed to save manual projects:', (error as Error).message);
+    debugLog('[DEBUG] Failed to save projects:', (error as Error).message);
   }
 }
 
 // Load on startup
-loadManualProjects();
+loadProjects();
 
 // ==================== Utility Functions ====================
 
@@ -345,18 +373,9 @@ app.get('/api/data/all', async (req, res) => {
 
       debugLog(`[DEBUG] Total ${results.projects.length} projects (auto-scanned + manual)`);
 
-      // Save all found projects to manual projects list for persistence
-      let needsSave = false;
-      for (const project of results.projects) {
-        const normalizedPath = path.normalize(project.path);
-        if (!manuallyAddedProjects.has(normalizedPath)) {
-          manuallyAddedProjects.add(normalizedPath);
-          needsSave = true;
-        }
-      }
-      if (needsSave) {
-        await saveManualProjects();
-      }
+      // Don't auto-save all scanned projects to manual projects list
+      // The manuallyAddedProjects Set should only contain projects that user
+      // explicitly added via "Add Project" or imported via "Scan" button
 
       // Scan project config files
       for (const project of results.projects) {
@@ -453,6 +472,13 @@ async function scanDirectoryForProjects(
       if (!entry.isDirectory()) continue;
 
       const projectPath = path.normalize(path.join(dir, entry.name));
+
+      // Skip if this project is in the excluded list
+      if (excludedProjects.has(projectPath)) {
+        debugLog(`[DEBUG] Skipping excluded project: ${projectPath}`);
+        continue;
+      }
+
       const claudePath = path.join(projectPath, '.claude');
       const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
 
@@ -935,7 +961,7 @@ app.get('/api/projects/scan', async (req, res) => {
 
     // Save if any new projects were added
     if (importedCount > 0) {
-      await saveManualProjects();
+      await saveProjects();
     }
 
     res.json({
@@ -1036,8 +1062,15 @@ app.post('/api/project/add', async (req, res) => {
 
     // Add to manually added projects list (normalize path to avoid duplicates)
     const normalizedPath = path.normalize(expandedPath);
+
+    // Remove from excluded list if it was previously excluded
+    if (excludedProjects.has(normalizedPath)) {
+      excludedProjects.delete(normalizedPath);
+      debugLog(`[DEBUG] Removed ${normalizedPath} from excluded list`);
+    }
+
     manuallyAddedProjects.add(normalizedPath);
-    await saveManualProjects();
+    await saveProjects();
     debugLog(`[DEBUG] Manually added project: ${normalizedPath}`);
 
     // Return project info
@@ -1111,7 +1144,7 @@ app.post('/api/projects/import', async (req, res) => {
     }
 
     // Save to file
-    await saveManualProjects();
+    await saveProjects();
 
     res.json({
       added: addedCount,
@@ -1139,25 +1172,27 @@ app.post('/api/projects/remove', async (req, res) => {
     const normalizedPath = path.normalize(projectPath);
 
     debugLog(`[DEBUG] Attempting to remove project: ${normalizedPath}`);
-    debugLog(`[DEBUG] Current projects in Set: ${Array.from(manuallyAddedProjects).slice(0, 5).join(', ')}`);
 
-    // Remove from manually added projects
-    if (manuallyAddedProjects.has(normalizedPath)) {
+    // Remove from manually added projects (if present)
+    const wasInIncluded = manuallyAddedProjects.has(normalizedPath);
+    if (wasInIncluded) {
       manuallyAddedProjects.delete(normalizedPath);
-      await saveManualProjects();
-
-      debugLog(`[DEBUG] Successfully removed project: ${normalizedPath}`);
-      debugLog(`[DEBUG] Remaining projects: ${manuallyAddedProjects.size}`);
-
-      res.json({
-        success: true,
-        message: 'Project removed from list',
-        path: normalizedPath
-      });
-    } else {
-      debugLog(`[DEBUG] Project not found in list: ${normalizedPath}`);
-      res.status(404).json({ error: 'Project not found in list' });
     }
+
+    // Add to excluded projects to prevent it from being re-scanned
+    excludedProjects.add(normalizedPath);
+
+    // Save changes
+    await saveProjects();
+
+    debugLog(`[DEBUG] Successfully removed project: ${normalizedPath}`);
+    debugLog(`[DEBUG] Added to excluded list. Total excluded: ${excludedProjects.size}`);
+
+    res.json({
+      success: true,
+      message: 'Project removed from list',
+      path: normalizedPath
+    });
   } catch (error) {
     debugLog(`[DEBUG] Error removing project: ${(error as Error).message}`);
     res.status(500).json({ error: (error as Error).message });
