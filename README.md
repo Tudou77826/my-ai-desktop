@@ -1,230 +1,234 @@
 # ClaudeCode Config Manager
 
-> A lightweight desktop application for visually managing Claude Code configuration files.
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18.3-cyan)](https://react.dev/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green)](https://nodejs.org/)
 
-## Overview
+一个用于可视化管理和编辑 Claude Code 配置文件的桌面应用。
 
-ClaudeCode Config Manager is a visual desktop tool that solves the problem of scattered Claude Code configurations across multiple locations. Instead of editing JSON and Markdown files manually, you get a unified dashboard with:
+## 项目背景
 
-- **Unified Dashboard**: View all ClaudeCode configs in one place
-- **Visual Editor**: Edit JSON/Markdown configs with Monaco Editor (VS Code's editor)
-- **Safe Operations**: Automatic backups, validation, and preview before applying changes
-- **Quick Toggles**: Enable/disable Skills, MCP servers, and Commands with one click
-- **Project Management**: Scan and manage multiple projects with their configurations
-- **Rule Management**: Create and manage coding rules for different programming languages
-- **SubAgent Management**: Configure custom AI agents with specific tools and instructions
-
-### Key Features
-
-- 📁 **Project Scanner** - Automatically discover projects with ClaudeCode configurations
-- 🔧 **Config Editor** - Edit JSON and Markdown files with syntax highlighting
-- ✅ **Validation** - Real-time JSON schema validation before saving
-- 💾 **Auto Backup** - Automatic `.backup` file creation before any write operation
-- 🔄 **Quick Toggle** - Enable/disable Skills, MCP servers, and Commands
-- 🧪 **Connection Testing** - Test MCP server connectivity
-- 📝 **Monaco Editor** - Full-featured code editor with IntelliSense
-- 🌍 **Localization** - English and Chinese language support
-- 🎨 **Modern UI** - Clean interface built with shadcn/ui components
-
-## Tech Stack
-
-- **Desktop Framework**: Neutralino (lightweight alternative to Electron)
-- **Frontend**: React 18 + TypeScript + Vite
-- **UI Components**: shadcn/ui (Tailwind CSS + Radix UI)
-- **State Management**: Zustand
-- **Backend**: Express.js (Node.js) on port 3001
-- **Code Editor**: Monaco Editor
-
-### Architecture
+Claude Code 的配置文件分散在多个位置：
 
 ```
-┌─────────────────────────────────────────────────────┐
-│         React Frontend (Vite dev server)            │
-│                  http://localhost:3737              │
-└────────────────────┬────────────────────────────────┘
-                     │ HTTP REST API
-┌────────────────────▼────────────────────────────────┐
-│         Express.js Backend (port 3001)              │
-│  • /api/data/all       • /api/config/read          │
-│  • /api/config/write   • /api/mcp/toggle            │
-│  • /api/projects/scan  • /api/projects/remove       │
-│  • /api/skills/create  • /api/commands/create       │
-└────────────────────┬────────────────────────────────┘
-                     │ File System
-┌────────────────────▼────────────────────────────────┐
-│  ~/.claude/, ~/.mcp.json, project/.claude/          │
-└─────────────────────────────────────────────────────┘
+~/.claude/settings.json              # 全局设置
+~/.claude/skills/*/SKILL.md          # 全局技能
+~/.claude/commands/*.md              # 全局命令
+~/.claude/rules/*.md                 # 编码规则
+~/.mcp.json                          # MCP 服务器配置
+/path/to/project/.claude/            # 项目配置
+/path/to/project/CLAUDE.md           # 项目指令
 ```
 
-## Screenshots
+手动编辑这些 JSON 和 Markdown 文件比较繁琐，本项目旨在提供一个统一的图形界面来管理这些配置。
 
-*(Add screenshots here when available)*
+## 当前功能
 
-## Installation
+### 已实现
 
-### Prerequisites
+- **配置文件管理**
+  - 读取和编辑 `~/.claude/settings.json`
+  - 管理全局和项目级别的 Skills
+  - 管理全局和项目级别的 Commands
+  - 管理语言特定的编码规则
+  - 管理 MCP 服务器配置
+  - 管理自定义 SubAgents
 
-- Node.js 20 or higher
-- npm or yarn
+- **编辑器**
+  - 集成 Monaco Editor（VS Code 的编辑器组件）
+  - 支持 JSON 和 Markdown 语法高亮
+  - 保存前自动验证 JSON 格式
+  - 写入前自动创建 `.backup` 备份文件
 
-### Development Setup
+- **项目管理**
+  - 扫描指定目录查找包含 `.claude/` 或 `CLAUDE.md` 的项目
+  - 添加/移除项目
+  - 项目排除列表（删除后不会重新扫描）
+
+- **其他**
+  - 中英文双语界面
+  - 一键启用/禁用 Skills、Commands、MCP 服务器
+  - MCP 服务器连接测试（当前为模拟数据）
+
+## 技术栈
+
+- **前端**: React 18 + TypeScript + Vite
+- **UI 组件**: shadcn/ui（基于 Tailwind CSS 和 Radix UI）
+- **状态管理**: Zustand
+- **后端**: Express.js（运行在 3001 端口）
+- **代码编辑器**: Monaco Editor
+- **桌面框架**: Neutralino（计划中，当前为 Web 版本）
+
+## 架构说明
+
+当前实现采用前后端分离架构：
+
+```
+React 前端 (Vite Dev Server)
+    ↓ HTTP REST API
+Express.js 后端 (端口 3001)
+    ↓ 文件系统操作
+Claude Code 配置文件
+```
+
+**后端 API** (Express.js):
+- 提供所有文件系统操作的 REST API
+- 处理配置文件的读取、写入、验证
+- 扫描项目目录
+- 管理 MCP、Skills、Commands 的 CRUD 操作
+
+**前端** (React):
+- 通过 HTTP API 与后端通信
+- 使用 Zustand 管理状态
+- 不直接操作文件系统
+
+## 安装和运行
+
+### 前置要求
+
+- Node.js >= 20
+- npm
+
+### 开发模式
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/my-ai-desktop.git
+# 克隆仓库
+git clone https://github.com/Tudou77826/my-ai-desktop.git
 cd my-ai-desktop
 
-# Install dependencies
+# 安装依赖
 npm install
 
-# Start the backend server (in one terminal)
+# 启动后端服务（终端 1）
 npm run server
 
-# Start the frontend dev server (in another terminal)
+# 启动前端服务（终端 2）
 npm run dev
-
-# Or start both in one command (Unix/Mac only)
-npm run dev:all
 ```
 
-The application will be available at:
-- Frontend: http://localhost:3737
-- Backend API: http://localhost:3001
+访问地址：
+- 前端: http://localhost:3737
+- 后端 API: http://localhost:3001
 
-### Building for Production
+### 生产构建
 
 ```bash
-# Build the frontend
+# 构建前端
 npm run build
 
-# Build for desktop (requires Neutralino CLI)
+# 桌面应用打包（需要安装 Neutralino CLI）
 npm run build:desktop
 ```
 
-## Usage
-
-### Managing Projects
-
-1. Click **"Scan Projects"** to discover projects with `.claude/` directories
-2. Add custom projects by clicking **"Add Project"**
-3. Remove projects by clicking the delete button (they won't be re-scanned)
-
-### Editing Configuration Files
-
-1. Navigate to any config section (Skills, MCP Servers, Commands, Rules, etc.)
-2. Click the **Edit** button on any item
-3. Monaco Editor will open with the file content
-4. Make your changes
-5. Click **Save** - the app will:
-   - Validate JSON files automatically
-   - Create a `.backup` file
-   - Write the new content
-   - Show success/error feedback
-
-### Creating New Items
-
-- **Skills**: Click "Create Skill" button, choose scope (global or project)
-- **Commands**: Click "Create Command", write command in Markdown with YAML frontmatter
-- **Rules**: Click "Create Rule", select programming language
-- **SubAgents**: Click "Create SubAgent", configure tools, skills, and instructions
-
-## File Locations
-
-The application manages these locations:
-
-```
-~/.claude/settings.json              # Global ClaudeCode settings
-~/.claude/skills/*/SKILL.md          # Global skills
-~/.claude/commands/*.md              # Global commands
-~/.claude/rules/*.md                 # Language-specific coding rules
-~/.claude/subagents/*.json           # Custom AI agents
-~/.mcp.json                          # Global MCP servers
-/path/to/project/.claude/            # Project-specific config
-/path/to/project/CLAUDE.md           # Project instructions
-~/.claude-config-manager-projects.json  # Project lists (included/excluded)
-```
-
-## Development
-
-### Project Structure
+## 项目结构
 
 ```
 my-ai-desktop/
-├── src/                    # React frontend
-│   ├── components/         # UI components
-│   ├── lib/               # Utilities and API client
-│   ├── store/             # Zustand state management
-│   └── types/             # TypeScript type definitions
-├── server/                # Express backend
-│   ├── handlers/          # API endpoint handlers
-│   ├── index.ts           # Main server file
-│   └── validator.ts       # JSON/Markdown validation
-├── public/                # Static assets
-├── resources/             # Neutralino resources
-└── neutralino.config.json # Desktop app configuration
+├── src/                    # React 前端
+│   ├── components/         # UI 组件
+│   │   ├── layout/        # 布局组件
+│   │   ├── Dashboard.tsx  # 仪表盘
+│   │   ├── SkillsList.tsx # 技能管理
+│   │   ├── MCPServers.tsx # MCP 服务器管理
+│   │   ├── CommandsList.tsx # 命令管理
+│   │   ├── RulesPage.tsx  # 规则管理
+│   │   └── SubAgentsPage.tsx # SubAgent 管理
+│   ├── lib/               # 工具和 API 客户端
+│   ├── store/             # Zustand 状态管理
+│   └── types/             # TypeScript 类型定义
+├── server/                # Express 后端
+│   ├── handlers/          # API 处理器
+│   │   ├── skill-manager.ts      # Skills CRUD
+│   │   ├── mcp-tools.ts          # MCP 工具
+│   │   ├── env-expander.ts       # 环境变量展开
+│   │   └── subagent-manager.ts   # SubAgent 管理
+│   ├── index.ts           # 主服务器文件
+│   └── validator.ts       # JSON/Markdown 验证
+├── public/                # 静态资源
+└── neutralino.config.json # Neutralino 配置
 ```
 
-### API Endpoints
+## API 端点
 
-See [CLAUDE.md](./CLAUDE.md) for complete API documentation.
+主要 API 端点：
 
-Key endpoints:
-- `GET /api/data/all` - Load all configuration data
-- `GET /api/config/read?path=<file>` - Read a config file
-- `POST /api/config/write` - Write a config file (with backup)
-- `POST /api/mcp/toggle` - Enable/disable MCP server
-- `GET /api/projects/scan` - Scan directory for projects
+```
+GET  /api/data/all          # 加载所有配置数据
+GET  /api/config/read       # 读取配置文件
+POST /api/config/write      # 写入配置文件（带备份）
+POST /api/mcp/toggle        # 启用/禁用 MCP 服务器
+GET  /api/projects/scan     # 扫描项目目录
+POST /api/projects/remove   # 移除项目
+POST /api/skills/create     # 创建 Skill
+POST /api/commands/create   # 创建 Command
+POST /api/rules/create      # 创建 Rule
+POST /api/subagents/save    # 保存 SubAgent
+```
 
-### Coding Standards
+完整 API 文档见 [CLAUDE.md](./CLAUDE.md)。
 
-- Use TypeScript for type safety
-- Follow ESLint configuration
-- Use Prettier for code formatting
-- Write self-documenting code with meaningful variable names
-- See `CLAUDE.md` for detailed coding guidelines
+## 开发指南
 
-## Contributing
+### 代码规范
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+- 使用 TypeScript 进行类型检查
+- 遵循 ESLint 配置
+- 使用 Prettier 格式化代码
+- 详细的编码指南见 [CLAUDE.md](./CLAUDE.md)
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+### 类型检查
 
-## Roadmap
+```bash
+npx tsc --noEmit
+```
 
-- [ ] Dark mode support
-- [ ] Configuration import/export
-- [ ] Configuration templates
-- [ ] Global search across all configs
-- [ ] Keyboard shortcuts
-- [ ] File watching (optional)
-- [ ] Plugin system
-- [ ] Better error handling and recovery
+### 代码检查
 
-## License
+```bash
+npm run lint
+npm run format
+```
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## 已知限制
 
-## Acknowledgments
+1. **MCP 工具和资源获取**: 当前返回模拟数据，未实现真实的 MCP 协议连接
+2. **文件监听**: 不支持自动刷新配置，需要手动点击刷新按钮
+3. **桌面打包**: Neutralino 桌面应用尚未完全实现，当前主要作为 Web 应用使用
+4. **测试**: 未包含自动化测试
 
-- Built with [React](https://react.dev/)
-- UI components from [shadcn/ui](https://ui.shadcn.com/)
-- Code editor by [Monaco Editor](https://microsoft.github.io/monaco-editor/)
-- Desktop framework by [Neutralino](https://neutralino.js.org/)
-- Icon library from [Lucide](https://lucide.dev/)
+## 贡献
 
-## Support
+欢迎贡献！请遵循以下流程：
 
-If you find any bugs or have feature requests, please [open an issue](https://github.com/yourusername/my-ai-desktop/issues).
+1. Fork 本仓库
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建 Pull Request
 
----
+## 路线图
 
-**Note**: This project is not affiliated with or endorsed by Anthropic. It is a community tool for managing Claude Code configurations.
+- [ ] 实现真实的 MCP 协议连接
+- [ ] 添加文件监听和自动刷新
+- [ ] 完善桌面应用打包
+- [ ] 添加单元测试和 E2E 测试
+- [ ] 暗色主题支持
+- [ ] 配置导入/导出功能
+- [ ] 全局搜索功能
+
+## 许可证
+
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
+
+## 致谢
+
+- [React](https://react.dev/) - 前端框架
+- [shadcn/ui](https://ui.shadcn.com/) - UI 组件库
+- [Monaco Editor](https://microsoft.github.io/monaco-editor/) - 代码编辑器
+- [Neutralino](https://neutralino.js.org/) - 桌面应用框架
+- [Lucide](https://lucide.dev/) - 图标库
+
+## 免责声明
+
+本项目与 Anthropic 无关，也不是官方的 Claude Code 工具。它是一个社区开发的配置管理辅助工具。
