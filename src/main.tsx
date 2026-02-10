@@ -6,9 +6,9 @@ import App from './App';
 import './index.css';
 
 // Initialize Neutralino (only available in desktop environment)
-// @ts-ignore
+// @ts-expect-error - Neutralino is not available in browser environment
 if (typeof window.Neutralino !== 'undefined') {
-  // @ts-ignore
+  // @ts-expect-error - Neutralino is not available in browser environment
   window.Neutralino.init();
 }
 

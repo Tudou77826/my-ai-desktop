@@ -77,6 +77,35 @@ export interface ConfigFile {
 }
 
 /**
+ * Represents a coding rule for a specific language
+ */
+export interface Rule {
+  id: string; // Language name (e.g., "typescript")
+  name: string; // Display name
+  language: string; // Language identifier
+  path: string; // Full file path
+  scope: 'global' | 'project';
+  enabled: boolean;
+  content: string; // Markdown content
+  lastModified?: Date;
+}
+
+/**
+ * Represents a ClaudeCode command (slash command)
+ */
+export interface Command {
+  id: string; // Command name (e.g., "test", "clear")
+  name: string; // Display name
+  path: string; // Full file path (for custom commands)
+  scope: 'global' | 'project' | 'builtin';
+  enabled: boolean;
+  builtin?: boolean; // true for built-in commands
+  content?: string; // Markdown content (for custom commands)
+  description?: string; // Short description
+  lastModified?: Date;
+}
+
+/**
  * Application data structure
  */
 export interface AppData {
@@ -84,6 +113,8 @@ export interface AppData {
   mcpServers: MCPServer[];
   projects: Project[];
   configFiles: ConfigFile[];
+  rules?: Rule[]; // Optional rules array
+  commands?: Command[]; // Optional commands array
 }
 
 /**

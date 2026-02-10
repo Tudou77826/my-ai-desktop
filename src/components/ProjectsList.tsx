@@ -1,14 +1,14 @@
 // ==================== ProjectsList Component ====================
 
 import { useEffect, useState, useMemo } from 'react';
-import { Folder, RefreshCw, Plus, HardDrive, Trash2, X } from 'lucide-react';
+import { Folder, RefreshCw, Plus, HardDrive, Trash2, X, HelpCircle } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useToast } from './ui/Toast';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
+import { Dialog } from './ui/Dialog';
 import { ProjectCard } from './ProjectCard';
 import { ProjectDetailDialog } from './ProjectDetailDialog';
-import { Dialog } from './ui/Dialog';
 import { api } from '../lib/api';
 
 export function ProjectsList() {
@@ -23,6 +23,7 @@ export function ProjectsList() {
   const [newProjectPath, setNewProjectPath] = useState('');
   const [addingProject, setAddingProject] = useState(false);
   const [scanSummary, setScanSummary] = useState<{ found: number; imported: number } | null>(null);
+  const [showInfoDialog, setShowInfoDialog] = useState(false);
 
   // Load data on mount
   useEffect(() => {
@@ -165,7 +166,16 @@ export function ProjectsList() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Projects</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+          Projects
+          <button
+            onClick={() => setShowInfoDialog(true)}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+            title="什么是项目？"
+          >
+            <HelpCircle className="w-5 h-5" />
+          </button>
+        </h1>
         <p className="text-gray-600">Manage your ClaudeCode projects</p>
         {scanSummary && (
           <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
@@ -340,6 +350,25 @@ export function ProjectsList() {
               <li><code>/home/user/workspace/app</code></li>
             </ul>
           </div>
+        </div>
+      </Dialog>
+
+      {/* Info Dialog */}
+      <Dialog
+        open={showInfoDialog}
+        onOpenChange={setShowInfoDialog}
+        title="什么是项目？"
+      >
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>
+            <strong className="text-gray-900">是什么？</strong> 项目是包含 Claude Code 配置的代码仓库（.claude/ 目录或 CLAUDE.md 文件）。
+          </p>
+          <p>
+            <strong className="text-gray-900">为什么管理？</strong> 扫描和组织项目以快速访问其配置，并查看项目特定的 Skills、MCP 服务器和设置。
+          </p>
+          <p>
+            <strong className="text-gray-900">如何管理？</strong> 手动添加项目或扫描目录以自动发现 Claude Code 项目。
+          </p>
         </div>
       </Dialog>
     </div>

@@ -2,15 +2,17 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, RefreshCw, Plus } from 'lucide-react';
+import { Search, RefreshCw, Plus, HelpCircle } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useToast } from './ui/Toast';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
+import { Dialog } from './ui/Dialog';
 import { SkillCard } from './SkillCard';
 import { SkillDetailDialog } from './SkillDetailDialog';
 import { SkillCreateWizard } from './skills/SkillCreateWizard';
+import { WishlistPanel } from './WishlistPanel';
 
 export function SkillsList() {
   const { t } = useTranslation();
@@ -19,6 +21,7 @@ export function SkillsList() {
 
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [showCreateWizard, setShowCreateWizard] = useState(false);
+  const [showInfoDialog, setShowInfoDialog] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState(ui.searchQuery);
 
   // Debounce search query
@@ -89,7 +92,16 @@ export function SkillsList() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Skills Management</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+          Skills Management
+          <button
+            onClick={() => setShowInfoDialog(true)}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+            title="什么是 Skills？"
+          >
+            <HelpCircle className="w-5 h-5" />
+          </button>
+        </h1>
         <p className="text-gray-600">Manage your ClaudeCode skills</p>
       </div>
 
@@ -174,6 +186,11 @@ export function SkillsList() {
         </div>
       )}
 
+      {/* Wishlist */}
+      <div className="mt-6">
+        <WishlistPanel type="skills" />
+      </div>
+
       {/* Detail Dialog */}
       <SkillDetailDialog
         open={selectedSkillId !== null}
@@ -188,6 +205,25 @@ export function SkillsList() {
           scope="global"
         />
       )}
+
+      {/* Info Dialog */}
+      <Dialog
+        open={showInfoDialog}
+        onOpenChange={setShowInfoDialog}
+        title={t('skills.info.title', { defaultValue: 'What are Skills?' })}
+      >
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>
+            <strong className="text-gray-900">是什么？</strong> {t('skills.info.what', { defaultValue: 'Skills are reusable prompt templates that extend Claude Code\'s capabilities for specific tasks or workflows.' })}
+          </p>
+          <p>
+            <strong className="text-gray-900">什么时候使用？</strong> {t('skills.info.when', { defaultValue: 'Use skills to standardize repetitive tasks like testing, documentation, or code patterns.' })}
+          </p>
+          <p>
+            <strong className="text-gray-900">如何管理？</strong> {t('skills.info.how', { defaultValue: 'Toggle skills on/off to enable them globally or create custom skills for your projects.' })}
+          </p>
+        </div>
+      </Dialog>
     </div>
   );
 }

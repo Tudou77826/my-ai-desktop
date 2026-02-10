@@ -2,191 +2,229 @@
 
 > A lightweight desktop application for visually managing Claude Code configuration files.
 
-## Status
-
-🚧 **Planning Phase** - Design documents complete, implementation pending. **Technology stack updated to Neutralino + Node.js** for simpler development.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18.3-cyan)](https://react.dev/)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-green)](https://nodejs.org/)
 
 ## Overview
 
-ClaudeCode Config Manager is a visual desktop tool that solves the problem of scattered Claude Code configurations across multiple locations:
+ClaudeCode Config Manager is a visual desktop tool that solves the problem of scattered Claude Code configurations across multiple locations. Instead of editing JSON and Markdown files manually, you get a unified dashboard with:
 
-- `~/.claude/settings.json` - Global ClaudeCode settings
-- `~/.claude/skills/*/SKILL.md` - Global skills
-- `~/.mcp.json` - Global MCP (Model Context Protocol) servers
-- `/path/to/project/.claude/` - Project-specific configs
-- `/path/to/project/CLAUDE.md` - Project instructions
+- **Unified Dashboard**: View all ClaudeCode configs in one place
+- **Visual Editor**: Edit JSON/Markdown configs with Monaco Editor (VS Code's editor)
+- **Safe Operations**: Automatic backups, validation, and preview before applying changes
+- **Quick Toggles**: Enable/disable Skills, MCP servers, and Commands with one click
+- **Project Management**: Scan and manage multiple projects with their configurations
+- **Rule Management**: Create and manage coding rules for different programming languages
+- **SubAgent Management**: Configure custom AI agents with specific tools and instructions
 
 ### Key Features
 
-- **Unified Dashboard**: View all ClaudeCode configs in one place
-- **Visual Editor**: Edit JSON/Markdown configs with syntax highlighting and validation
-- **Safe Operations**: Preview changes before applying, automatic backups created
-- **Quick Toggles**: Enable/disable Skills and MCP servers with one click
-- **Connection Testing**: Test MCP server health status
-- **Lightweight**: Built with Neutralino for small size (5-10MB) and fast startup
+- 📁 **Project Scanner** - Automatically discover projects with ClaudeCode configurations
+- 🔧 **Config Editor** - Edit JSON and Markdown files with syntax highlighting
+- ✅ **Validation** - Real-time JSON schema validation before saving
+- 💾 **Auto Backup** - Automatic `.backup` file creation before any write operation
+- 🔄 **Quick Toggle** - Enable/disable Skills, MCP servers, and Commands
+- 🧪 **Connection Testing** - Test MCP server connectivity
+- 📝 **Monaco Editor** - Full-featured code editor with IntelliSense
+- 🌍 **Localization** - English and Chinese language support
+- 🎨 **Modern UI** - Clean interface built with shadcn/ui components
 
-### Tech Stack
+## Tech Stack
 
-**Desktop Framework**: Neutralino (lightweight alternative to Electron/Tauri)
-**Frontend**: React 18 + TypeScript + Vite
-**UI**: shadcn/ui (Tailwind CSS + Radix UI)
-**State**: Zustand
-**Backend**: Node.js (unified JavaScript/TypeScript stack)
-**Editor**: Monaco Editor (VS Code's editor)
+- **Desktop Framework**: Neutralino (lightweight alternative to Electron)
+- **Frontend**: React 18 + TypeScript + Vite
+- **UI Components**: shadcn/ui (Tailwind CSS + Radix UI)
+- **State Management**: Zustand
+- **Backend**: Express.js (Node.js) on port 3001
+- **Code Editor**: Monaco Editor
 
-**Why Neutralino + Node.js?**
-- **Pure JavaScript/TypeScript**: No need to learn Rust (unlike Tauri)
-- **Smaller than Electron**: 5-10MB vs 150MB+
-- **Faster Development**: Unified stack, no context switching
-- **Simpler Debugging**: Browser DevTools for everything
-
-## Project Documentation
-
-- [CLAUDE.md](./CLAUDE.md) - Development guide for AI assistants working on this codebase
-- [ClaudeCode Config Manager - Simplified Design (Chinese)](./ClaudeCode可视化管理 - 简化设计文档.md) - Technical architecture
-- [UI/UX Design Specifications (Chinese)](./ClaudeCode可视化管理-UI-UX设计书.md) - Detailed UI design
-- [Iteration Delivery Plan (Chinese)](./ClaudeCode可视化管理-迭代交付计划.md) - 8-week development roadmap
-- [Technology Comparison (Chinese)](./技术方案对比.md) - Comparison of desktop frameworks
-
-## Development Status
-
-### Planned Features
-
-#### Phase 1: Foundation (Week 1-2)
-- [ ] Neutralino + React project setup
-- [ ] Configuration file reading (JSON/Markdown)
-- [ ] Dashboard with statistics
-- [ ] Basic file tree component
-
-#### Phase 2: Core Features (Week 3-4) - MVP
-- [ ] Monaco Editor integration
-- [ ] Configuration editing with validation
-- [ ] Skills management (enable/disable)
-- [ ] MCP servers management
-- [ ] Connection testing for MCP servers
-- [ ] Diff preview before save
-- [ ] Automatic backup creation
-
-#### Phase 3: Polish (Week 5-6)
-- [ ] Dark mode support
-- [ ] Global search across configs
-- [ ] Keyboard shortcuts
-- [ ] Error handling improvements
-- [ ] Performance optimization
-
-#### Phase 4: Advanced (Week 7-8)
-- [ ] Configuration import/export
-- [ ] Configuration templates
-- [ ] CLI command execution
-- [ ] Plugin system foundation
-
-## Design Principles
-
-1. **Simple First**: Only build essential features
-2. **Passive Response**: Manual refresh only, no file watching
-3. **Cautious Operations**: Preview changes, auto-backup
-4. **Lightweight**: Fast startup, small bundle
-5. **Unified Stack**: Pure JavaScript/TypeScript - simpler development
-
-## Performance Targets
-
-| Metric | MVP Target | v1.0 Target |
-|--------|-----------|-------------|
-| Startup Time | <3s | <2s |
-| App Size | <10MB | <8MB |
-| Memory Usage | <60MB | <50MB |
-| UI Response | <500ms | <200ms |
-
-## Technology Choice: Why Neutralino?
-
-### Comparison with Alternatives
-
-| Aspect | Electron | Tauri + Rust | **Neutralino + Node.js** | VS Code Extension |
-|--------|----------|--------------|-------------------------|-------------------|
-| **Bundle Size** | 150MB+ | 15MB | **5-10MB** | <1MB |
-| **Startup Time** | 3-5s | <1s | **<2s** | Instant |
-| **Memory Usage** | 200MB+ | <80MB | **<60MB** | <20MB |
-| **Language** | JavaScript | Rust + JS | **JavaScript only** | JavaScript only |
-| **Learning Curve** | Low | High (Rust) | **Low** | Medium |
-| **Dev Speed** | Fast | Slow | **Fast** | Medium |
-| **Ecosystem** | Mature | Growing | **Good** | Limited to VS Code |
-
-### Key Advantages
-
-1. **No Rust Required**: Unlike Tauri, no need to learn a new language
-2. **Smaller than Electron**: Uses system webview instead of bundling Chromium
-3. **Full JS/TS Stack**: Share code between frontend and backend
-4. **Fast Development**: No context switching between languages
-5. **Easy Debugging**: Browser DevTools for everything
-
-## Getting Started (When Implementation Begins)
-
-```bash
-# Install Neutralino CLI
-npm install -g @neutralinojs/neu
-
-# Create project
-neu create claude-config-manager
-# Select: Neutralino.js + React + TypeScript
-
-# Install dependencies
-cd claude-config-manager
-npm install zustand lucide-react @monaco-editor/react date-fns
-
-# Setup shadcn/ui
-npx shadcn-ui@latest init
-npx shadcn-ui@latest add button card switch dialog dropdown-menu
-
-# Development
-npm run dev
-
-# Build
-npm run build
-
-# Generate release binaries
-neu release
-```
-
-See [CLAUDE.md](./CLAUDE.md) for detailed development commands and architecture.
-
-## Architecture Overview
+### Architecture
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│              React UI (Frontend)                     │
-│  ┌──────────┬──────────┬──────────┬──────────┐      │
-│  │ Dashboard│  Skills  │   MCP    │ Projects │      │
-│  └──────────┴──────────┴──────────┴──────────┘      │
-└─────────────────┬───────────────────────────────────┘
-                  │ Neutralino IPC
-┌─────────────────▼───────────────────────────────────┐
-│         Node.js Backend (background/)               │
-│  • loadAllData()    • readConfig()                  │
-│  • writeConfig()    • validateConfig()              │
-│  • toggleSkill()    • testMcpConnection()           │
-└─────────────────┬───────────────────────────────────┘
-                  │
-┌─────────────────▼───────────────────────────────────┐
-│         File System (ClaudeCode configs)             │
+│         React Frontend (Vite dev server)            │
+│                  http://localhost:3737              │
+└────────────────────┬────────────────────────────────┘
+                     │ HTTP REST API
+┌────────────────────▼────────────────────────────────┐
+│         Express.js Backend (port 3001)              │
+│  • /api/data/all       • /api/config/read          │
+│  • /api/config/write   • /api/mcp/toggle            │
+│  • /api/projects/scan  • /api/projects/remove       │
+│  • /api/skills/create  • /api/commands/create       │
+└────────────────────┬────────────────────────────────┘
+                     │ File System
+┌────────────────────▼────────────────────────────────┐
 │  ~/.claude/, ~/.mcp.json, project/.claude/          │
 └─────────────────────────────────────────────────────┘
 ```
 
-**Key Points**:
-- Pure JavaScript/TypeScript stack
-- No database - all data in-memory (Zustand)
-- Manual refresh only - no file watching
-- Automatic backups before write
-- JSON validation before save
+## Screenshots
 
-## License
+*(Add screenshots here when available)*
 
-TBD
+## Installation
+
+### Prerequisites
+
+- Node.js 20 or higher
+- npm or yarn
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/my-ai-desktop.git
+cd my-ai-desktop
+
+# Install dependencies
+npm install
+
+# Start the backend server (in one terminal)
+npm run server
+
+# Start the frontend dev server (in another terminal)
+npm run dev
+
+# Or start both in one command (Unix/Mac only)
+npm run dev:all
+```
+
+The application will be available at:
+- Frontend: http://localhost:3737
+- Backend API: http://localhost:3001
+
+### Building for Production
+
+```bash
+# Build the frontend
+npm run build
+
+# Build for desktop (requires Neutralino CLI)
+npm run build:desktop
+```
+
+## Usage
+
+### Managing Projects
+
+1. Click **"Scan Projects"** to discover projects with `.claude/` directories
+2. Add custom projects by clicking **"Add Project"**
+3. Remove projects by clicking the delete button (they won't be re-scanned)
+
+### Editing Configuration Files
+
+1. Navigate to any config section (Skills, MCP Servers, Commands, Rules, etc.)
+2. Click the **Edit** button on any item
+3. Monaco Editor will open with the file content
+4. Make your changes
+5. Click **Save** - the app will:
+   - Validate JSON files automatically
+   - Create a `.backup` file
+   - Write the new content
+   - Show success/error feedback
+
+### Creating New Items
+
+- **Skills**: Click "Create Skill" button, choose scope (global or project)
+- **Commands**: Click "Create Command", write command in Markdown with YAML frontmatter
+- **Rules**: Click "Create Rule", select programming language
+- **SubAgents**: Click "Create SubAgent", configure tools, skills, and instructions
+
+## File Locations
+
+The application manages these locations:
+
+```
+~/.claude/settings.json              # Global ClaudeCode settings
+~/.claude/skills/*/SKILL.md          # Global skills
+~/.claude/commands/*.md              # Global commands
+~/.claude/rules/*.md                 # Language-specific coding rules
+~/.claude/subagents/*.json           # Custom AI agents
+~/.mcp.json                          # Global MCP servers
+/path/to/project/.claude/            # Project-specific config
+/path/to/project/CLAUDE.md           # Project instructions
+~/.claude-config-manager-projects.json  # Project lists (included/excluded)
+```
+
+## Development
+
+### Project Structure
+
+```
+my-ai-desktop/
+├── src/                    # React frontend
+│   ├── components/         # UI components
+│   ├── lib/               # Utilities and API client
+│   ├── store/             # Zustand state management
+│   └── types/             # TypeScript type definitions
+├── server/                # Express backend
+│   ├── handlers/          # API endpoint handlers
+│   ├── index.ts           # Main server file
+│   └── validator.ts       # JSON/Markdown validation
+├── public/                # Static assets
+├── resources/             # Neutralino resources
+└── neutralino.config.json # Desktop app configuration
+```
+
+### API Endpoints
+
+See [CLAUDE.md](./CLAUDE.md) for complete API documentation.
+
+Key endpoints:
+- `GET /api/data/all` - Load all configuration data
+- `GET /api/config/read?path=<file>` - Read a config file
+- `POST /api/config/write` - Write a config file (with backup)
+- `POST /api/mcp/toggle` - Enable/disable MCP server
+- `GET /api/projects/scan` - Scan directory for projects
+
+### Coding Standards
+
+- Use TypeScript for type safety
+- Follow ESLint configuration
+- Use Prettier for code formatting
+- Write self-documenting code with meaningful variable names
+- See `CLAUDE.md` for detailed coding guidelines
 
 ## Contributing
 
-This project is currently in the planning phase. Contributions will be welcome once implementation begins.
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## Roadmap
+
+- [ ] Dark mode support
+- [ ] Configuration import/export
+- [ ] Configuration templates
+- [ ] Global search across all configs
+- [ ] Keyboard shortcuts
+- [ ] File watching (optional)
+- [ ] Plugin system
+- [ ] Better error handling and recovery
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Built with [React](https://react.dev/)
+- UI components from [shadcn/ui](https://ui.shadcn.com/)
+- Code editor by [Monaco Editor](https://microsoft.github.io/monaco-editor/)
+- Desktop framework by [Neutralino](https://neutralino.js.org/)
+- Icon library from [Lucide](https://lucide.dev/)
+
+## Support
+
+If you find any bugs or have feature requests, please [open an issue](https://github.com/yourusername/my-ai-desktop/issues).
 
 ---
 
-**Note**: This repository currently contains design documents only. Implementation has not yet started. Technology stack has been updated from Tauri + Rust to Neutralino + Node.js for simpler development and unified JavaScript/TypeScript stack.
+**Note**: This project is not affiliated with or endorsed by Anthropic. It is a community tool for managing Claude Code configurations.

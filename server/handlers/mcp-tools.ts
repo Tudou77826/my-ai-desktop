@@ -2,9 +2,6 @@
 // Handles MCP tool and resource discovery
 
 import { spawn } from 'child_process';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as os from 'os';
 
 export interface MCPTool {
   name: string;
@@ -36,7 +33,7 @@ const healthHistoryStore = new Map<string, MCPHealthHistory['history']>();
  * Get MCP tools for a server
  */
 export async function getMcpTools(serverId: string, serverConfig: any): Promise<MCPTool[]> {
-  const { transport, command, args, url } = serverConfig;
+  const { transport, url } = serverConfig;
 
   // For HTTP transport, we can't easily get tools without proper MCP client
   // Return mock data based on common MCP servers
@@ -57,7 +54,7 @@ export async function getMcpTools(serverId: string, serverConfig: any): Promise<
 /**
  * Get MCP resources for a server
  */
-export async function getMcpResources(serverId: string, serverConfig: any): Promise<MCPResource[]> {
+export async function getMcpResources(serverId: string, _serverConfig: any): Promise<MCPResource[]> {
   // Similar to tools, return mock data
   return getMockResources(serverId);
 }
@@ -69,7 +66,7 @@ export async function testMcpTool(
   serverId: string,
   toolName: string,
   args: any,
-  serverConfig: any
+  _serverConfig: any
 ): Promise<any> {
   // Mock implementation - in real scenario would call actual MCP server
   return {
@@ -113,8 +110,10 @@ export function addHealthCheckPoint(
 
 /**
  * Get mock tools for stdio transport
+ * @private Unused for now, kept for future implementation
  */
-async function getStdioTools(command: string, args: string[]): Promise<MCPTool[]> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function _getStdioTools(command: string, args: string[]): Promise<MCPTool[]> {
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, {
       env: process.env

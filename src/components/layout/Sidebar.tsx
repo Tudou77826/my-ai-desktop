@@ -5,7 +5,10 @@ import {
   Puzzle,
   Plug,
   FolderKanban,
-  FileCode
+  FileCode,
+  Bot,
+  Bookmark,
+  Terminal
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { cn } from '../../lib/utils';
@@ -20,6 +23,9 @@ const navItems: NavItem[] = [
   { id: 'dashboard', label: '概览', icon: LayoutDashboard },
   { id: 'skills', label: 'Skills', icon: Puzzle },
   { id: 'mcp', label: 'MCP', icon: Plug },
+  { id: 'subagents', label: 'SubAgents', icon: Bot },
+  { id: 'rules', label: 'Rules', icon: Bookmark },
+  { id: 'commands', label: 'Commands', icon: Terminal },
   { id: 'projects', label: '项目', icon: FolderKanban },
   { id: 'config', label: '配置', icon: FileCode },
 ];

@@ -1,7 +1,7 @@
 // ==================== Frontend API Wrapper ====================
 // This file communicates with the Node.js backend server
 
-import type { AppData, ConfigFile, HealthStatus, ValidationResult } from '../types';
+import type { AppData, ConfigFile, HealthStatus, ValidationResult, Rule, Command } from '../types';
 
 const API_BASE = 'http://localhost:3001/api';
 
@@ -46,6 +46,39 @@ export interface EnvVarResult {
   expanded: string;
   references: string[];
   original: string;
+}
+
+export interface WishlistItem {
+  id: string;
+  title: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+  completed: boolean;
+}
+
+export interface WishlistData {
+  mcp: WishlistItem[];
+  skills: WishlistItem[];
+  subagents: WishlistItem[];
+}
+
+export interface SubAgent {
+  id: string;
+  name: string;
+  description: string;
+  scope: 'user' | 'project' | 'builtin';
+  tools?: string[];
+  disallowedTools?: string[];
+  model?: 'sonnet' | 'opus' | 'haiku' | 'inherit';
+  permissionMode?: 'default' | 'acceptEdits' | 'delegate' | 'dontAsk' | 'bypassPermissions' | 'plan';
+  maxTurns?: number;
+  skills?: string[];
+  mcpServers?: string[] | Record<string, any>;
+  hooks?: Record<string, any>;
+  memory?: 'user' | 'project' | 'local';
+  content?: string;
+  filePath?: string;
 }
 
 /**
@@ -322,6 +355,163 @@ export const api = {
     return apiCall('/env/expand', {
       method: 'POST',
       body: JSON.stringify({ value }),
+    });
+  },
+
+  // ==================== Wishlist ====================
+
+  /**
+   * Get all wishlist data
+   */
+  async getWishlist(): Promise<WishlistData> {
+    return apiCall('/wishlist');
+  },
+
+  /**
+   * Add a wishlist item
+   */
+  async addWishlistItem(type: 'mcp' | 'skills' | 'subagents', title: string, notes: string): Promise<{ success: boolean; item: WishlistItem }> {
+    return apiCall('/wishlist/add', {
+      method: 'POST',
+      body: JSON.stringify({ type, title, notes }),
+    });
+  },
+
+  /**
+   * Update a wishlist item
+   */
+  async updateWishlistItem(type: 'mcp' | 'skills' | 'subagents', itemId: string, updates: Partial<Pick<WishlistItem, 'title' | 'notes' | 'completed'>>): Promise<{ success: boolean; item: WishlistItem }> {
+    return apiCall('/wishlist/update', {
+      method: 'PUT',
+      body: JSON.stringify({ type, itemId, ...updates }),
+    });
+  },
+
+  /**
+   * Remove a wishlist item
+   */
+  async removeWishlistItem(type: 'mcp' | 'skills' | 'subagents', itemId: string): Promise<{ success: boolean }> {
+    return apiCall('/wishlist/remove', {
+      method: 'DELETE',
+      body: JSON.stringify({ type, itemId }),
+    });
+  },
+
+  // ==================== SubAgents ====================
+
+  /**
+   * Get all subagents
+   */
+  async getSubAgents(projectPath?: string): Promise<{ subagents: SubAgent[] }> {
+    const query = projectPath ? `?projectPath=${encodeURIComponent(projectPath)}` : '';
+    return apiCall(`/subagents${query}`);
+  },
+
+  /**
+   * Create or update a subagent
+   */
+  async saveSubAgent(subagent: Partial<SubAgent> & { name: string; description: string; scope: 'user' | 'project' }, projectPath?: string) {
+    return apiCall('/subagents/save', {
+      method: 'POST',
+      body: JSON.stringify({ ...subagent, projectPath }),
+    });
+  },
+
+  /**
+   * Delete a subagent
+   */
+  async deleteSubAgent(id: string, scope: 'user' | 'project', projectPath?: string) {
+    return apiCall(`/subagents/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ scope, projectPath }),
+    });
+  },
+
+  /**
+   * Get subagent file content
+   */
+  async getSubAgentContent(id: string, scope: 'user' | 'project', projectPath?: string): Promise<{ content: string }> {
+    const query = `?scope=${scope}${projectPath ? `&projectPath=${encodeURIComponent(projectPath)}` : ''}`;
+    return apiCall(`/subagents/${id}/content${query}`);
+  },
+
+  // ==================== Rules ====================
+
+  /**
+   * Get all rules
+   */
+  async getAllRules(): Promise<Rule[]> {
+    return apiCall('/rules/all');
+  },
+
+  /**
+   * Create a new rule
+   */
+  async createRule(language: string, content: string): Promise<Rule> {
+    return apiCall('/rules/create', {
+      method: 'POST',
+      body: JSON.stringify({ language, content }),
+    });
+  },
+
+  /**
+   * Update a rule
+   */
+  async updateRule(language: string, content: string): Promise<Rule> {
+    return apiCall('/rules/update', {
+      method: 'POST',
+      body: JSON.stringify({ language, content }),
+    });
+  },
+
+  /**
+   * Delete a rule
+   */
+  async deleteRule(language: string): Promise<{ success: boolean; message: string }> {
+    return apiCall('/rules/delete', {
+      method: 'DELETE',
+      body: JSON.stringify({ language }),
+    });
+  },
+
+  // ==================== Commands ====================
+
+  /**
+   * Get all commands (both built-in and custom)
+   * Uses /data/all endpoint to include plugin commands
+   */
+  async getAllCommands(): Promise<Command[]> {
+    const data = await apiCall('/data/all');
+    return data.commands || [];
+  },
+
+  /**
+   * Create a new command
+   */
+  async createCommand(commandId: string, content: string): Promise<Command> {
+    return apiCall('/commands/create', {
+      method: 'POST',
+      body: JSON.stringify({ commandId, content }),
+    });
+  },
+
+  /**
+   * Update a command
+   */
+  async updateCommand(commandId: string, content: string): Promise<Command> {
+    return apiCall('/commands/update', {
+      method: 'POST',
+      body: JSON.stringify({ commandId, content }),
+    });
+  },
+
+  /**
+   * Delete a command
+   */
+  async deleteCommand(commandId: string): Promise<{ success: boolean; message: string }> {
+    return apiCall('/commands/delete', {
+      method: 'DELETE',
+      body: JSON.stringify({ commandId }),
     });
   },
 };

@@ -1,18 +1,21 @@
 // ==================== MCPServers Component ====================
 
 import { useState } from 'react';
-import { Zap, RefreshCw } from 'lucide-react';
+import { Zap, RefreshCw, HelpCircle } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useToast } from './ui/Toast';
 import { Button } from './ui/Button';
+import { Dialog } from './ui/Dialog';
 import { MCPServerCard } from './MCPServerCard';
 import { MCPToolBrowser } from './mcp/MCPToolBrowser';
+import { WishlistPanel } from './WishlistPanel';
 
 export function MCPServers() {
   const { data, testMcpConnection } = useAppStore();
   const { showToast } = useToast();
   const [testingServerId, setTestingServerId] = useState<string | null>(null);
   const [selectedServerForTools, setSelectedServerForTools] = useState<{ id: string; name: string } | null>(null);
+  const [showInfoDialog, setShowInfoDialog] = useState(false);
 
   const handleToggle = async (serverId: string, enabled: boolean) => {
     try {
@@ -65,7 +68,16 @@ export function MCPServers() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">MCP Servers</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+          MCP Servers
+          <button
+            onClick={() => setShowInfoDialog(true)}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+            title="什么是 MCP 服务器？"
+          >
+            <HelpCircle className="w-5 h-5" />
+          </button>
+        </h1>
         <p className="text-gray-600">Manage your Model Context Protocol servers</p>
       </div>
 
@@ -105,6 +117,11 @@ export function MCPServers() {
         </div>
       )}
 
+      {/* Wishlist */}
+      <div className="mt-6">
+        <WishlistPanel type="mcp" />
+      </div>
+
       {/* Tool Browser Dialog */}
       {selectedServerForTools && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -121,6 +138,25 @@ export function MCPServers() {
           </div>
         </div>
       )}
+
+      {/* Info Dialog */}
+      <Dialog
+        open={showInfoDialog}
+        onOpenChange={setShowInfoDialog}
+        title="什么是 MCP 服务器？"
+      >
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>
+            <strong className="text-gray-900">是什么？</strong> MCP (Model Context Protocol) 服务器通过提供额外的工具和数据源来扩展 Claude Code 的功能。
+          </p>
+          <p>
+            <strong className="text-gray-900">什么时候使用？</strong> 启用 MCP 服务器可以添加外部功能，如数据库访问、API 调用或文件系统操作。
+          </p>
+          <p>
+            <strong className="text-gray-900">如何管理？</strong> 切换开关来启用服务器，或测试连接以验证它们是否正常工作。
+          </p>
+        </div>
+      </Dialog>
     </div>
   );
 }

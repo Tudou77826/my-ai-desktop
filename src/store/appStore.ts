@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import type { AppData } from '../types';
 import { api } from '../lib/api';
-import type { MCPTool, MCPResource, HealthCheckPoint, SkillTemplate, SkillTestResult } from '../lib/api';
+import type { MCPTool, MCPResource, HealthCheckPoint, SkillTemplate, SkillTestResult, WishlistData, WishlistItem } from '../lib/api';
 import i18n from '../lib/i18n';
 
 interface AppStore {
@@ -38,6 +38,9 @@ interface AppStore {
   // Iteration 3: Language
   language: 'zh-CN' | 'en-US';
 
+  // Wishlist State
+  wishlist: WishlistData;
+
   // Actions
   loadData: () => Promise<void>;
   refreshData: () => Promise<void>;
@@ -70,6 +73,12 @@ interface AppStore {
   // Iteration 3: Language Action
   setLanguage: (language: 'zh-CN' | 'en-US') => void;
   setSkillWizardStep: (step: number) => void;
+
+  // Wishlist Actions
+  loadWishlist: () => Promise<void>;
+  addWishlistItem: (type: 'mcp' | 'skills' | 'subagents', title: string, notes: string) => Promise<void>;
+  updateWishlistItem: (type: 'mcp' | 'skills' | 'subagents', itemId: string, updates: Partial<Pick<WishlistItem, 'title' | 'notes' | 'completed'>>) => Promise<void>;
+  removeWishlistItem: (type: 'mcp' | 'skills' | 'subagents', itemId: string) => Promise<void>;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -99,6 +108,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   isCreatingSkill: false,
   skillWizardStep: 0,
   language: 'zh-CN',
+  wishlist: { mcp: [], skills: [], subagents: [] },
 
   // Actions
   loadData: async () => {
@@ -332,4 +342,42 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setSkillWizardStep: (step) => set({ skillWizardStep: step }),
+
+  // ==================== Wishlist Actions ====================
+
+  loadWishlist: async () => {
+    try {
+      const wishlist = await api.getWishlist();
+      set({ wishlist });
+    } catch (error) {
+      set({ error: (error as Error).message });
+    }
+  },
+
+  addWishlistItem: async (type, title, notes) => {
+    try {
+      await api.addWishlistItem(type, title, notes);
+      await get().loadWishlist();
+    } catch (error) {
+      set({ error: (error as Error).message });
+    }
+  },
+
+  updateWishlistItem: async (type, itemId, updates) => {
+    try {
+      await api.updateWishlistItem(type, itemId, updates);
+      await get().loadWishlist();
+    } catch (error) {
+      set({ error: (error as Error).message });
+    }
+  },
+
+  removeWishlistItem: async (type, itemId) => {
+    try {
+      await api.removeWishlistItem(type, itemId);
+      await get().loadWishlist();
+    } catch (error) {
+      set({ error: (error as Error).message });
+    }
+  },
 }));

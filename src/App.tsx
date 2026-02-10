@@ -6,6 +6,9 @@ import { Sidebar } from './components/layout/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { SkillsList } from './components/SkillsList';
 import { MCPServers } from './components/MCPServers';
+import { SubAgentsPage } from './components/SubAgentsPage';
+import { RulesPage } from './components/RulesPage';
+import { CommandsList } from './components/CommandsList';
 import { ProjectsList } from './components/ProjectsList';
 import { ConfigEditor } from './components/ConfigEditor';
 import { ToastProvider } from './components/ui/Toast';
@@ -25,6 +28,12 @@ function AppContent() {
         return <SkillsList />;
       case 'mcp':
         return <MCPServers />;
+      case 'subagents':
+        return <SubAgentsPage />;
+      case 'rules':
+        return <RulesPage />;
+      case 'commands':
+        return <CommandsList />;
       case 'projects':
         return <ProjectsList />;
       case 'config':
