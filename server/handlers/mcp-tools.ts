@@ -1,7 +1,9 @@
 // ==================== MCP Tools Handler ====================
-// Handles MCP tool and resource discovery
+// Handles MCP tool and resource discovery using official MCP SDK
 
-import { spawn } from 'child_process';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 
 export interface MCPTool {
   name: string;
@@ -29,34 +31,69 @@ export interface MCPHealthHistory {
 // In-memory storage for health history
 const healthHistoryStore = new Map<string, MCPHealthHistory['history']>();
 
+// Cache for MCP clients to avoid recreating them
+const clientCache = new Map<string, { client: Client; transport: any }>();
+
 /**
- * Get MCP tools for a server
+ * Get MCP tools for a server using real MCP protocol
  */
 export async function getMcpTools(serverId: string, serverConfig: any): Promise<MCPTool[]> {
-  const { transport, url } = serverConfig;
+  try {
+    const startTime = Date.now();
+    const client = await getOrCreateClient(serverId, serverConfig);
 
-  // For HTTP transport, we can't easily get tools without proper MCP client
-  // Return mock data based on common MCP servers
-  if (transport === 'http' && url) {
-    return getMockHttpTools(serverId, url);
+    const { tools } = await client.listTools();
+    const latency = Date.now() - startTime;
+
+    // Record successful health check
+    addHealthCheckPoint(serverId, 'ok', latency);
+
+    return tools.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+      permissionStatus: 'allowed' as const
+    }));
+  } catch (error) {
+    // Record failed health check
+    addHealthCheckPoint(serverId, 'error');
+
+    console.error(`[MCP Tools] Error getting tools for ${serverId}:`, error);
+
+    // Return empty array on error instead of throwing
+    return [];
   }
-
-  // For stdio transport, return mock data directly (real connection is complex)
-  if (transport === 'stdio') {
-    console.log(`[MCP Tools] Using mock data for stdio server: ${serverId}`);
-    return getMockTools(serverId);
-  }
-
-  // Default to mock data
-  return getMockTools(serverId);
 }
 
 /**
- * Get MCP resources for a server
+ * Get MCP resources for a server using real MCP protocol
  */
-export async function getMcpResources(serverId: string, _serverConfig: any): Promise<MCPResource[]> {
-  // Similar to tools, return mock data
-  return getMockResources(serverId);
+export async function getMcpResources(serverId: string, serverConfig: any): Promise<MCPResource[]> {
+  try {
+    const startTime = Date.now();
+    const client = await getOrCreateClient(serverId, serverConfig);
+
+    const { resources } = await client.listResources();
+    const latency = Date.now() - startTime;
+
+    // Record successful health check
+    addHealthCheckPoint(serverId, 'ok', latency);
+
+    return resources.map(resource => ({
+      uri: resource.uri,
+      name: resource.name,
+      description: resource.description,
+      mimeType: resource.mimeType
+    }));
+  } catch (error) {
+    // Record failed health check
+    addHealthCheckPoint(serverId, 'error');
+
+    console.error(`[MCP Resources] Error getting resources for ${serverId}:`, error);
+
+    // Return empty array on error
+    return [];
+  }
 }
 
 /**
@@ -66,14 +103,26 @@ export async function testMcpTool(
   serverId: string,
   toolName: string,
   args: any,
-  _serverConfig: any
+  serverConfig: any
 ): Promise<any> {
-  // Mock implementation - in real scenario would call actual MCP server
-  return {
-    success: true,
-    result: `Mock result from ${toolName}`,
-    arguments: args
-  };
+  try {
+    const client = await getOrCreateClient(serverId, serverConfig);
+
+    const result = await client.callTool({
+      name: toolName,
+      arguments: args
+    });
+
+    return {
+      success: true,
+      result: result
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: (error as Error).message
+    };
+  }
 }
 
 /**
@@ -106,253 +155,83 @@ export function addHealthCheckPoint(
   healthHistoryStore.set(serverId, history);
 }
 
-// ==================== Helper Functions ====================
-
 /**
- * Get mock tools for stdio transport
- * @private Unused for now, kept for future implementation
+ * Get or create MCP client for a server
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function _getStdioTools(command: string, args: string[]): Promise<MCPTool[]> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, {
-      env: process.env
-    });
-
-    let output = '';
-    let errorOutput = '';
-
-    proc.stdout?.on('data', (data) => {
-      output += data.toString();
-    });
-
-    proc.stderr?.on('data', (data) => {
-      errorOutput += data.toString();
-    });
-
-    // Timeout after 5 seconds
-    const timeout = setTimeout(() => {
-      proc.kill();
-      reject(new Error('Timeout getting tools'));
-    }, 5000);
-
-    proc.on('close', (code) => {
-      clearTimeout(timeout);
-      if (code === 0) {
-        try {
-          const response = JSON.parse(output);
-          // Extract tools from MCP response
-          const tools = response.result?.tools || [];
-          resolve(tools.map((t: any) => ({
-            name: t.name,
-            description: t.description,
-            inputSchema: t.inputSchema,
-            permissionStatus: 'allowed' as const
-          })));
-        } catch {
-          reject(new Error('Failed to parse MCP response'));
-        }
-      } else {
-        reject(new Error(errorOutput || 'Process failed'));
-      }
-    });
-  });
-}
-
-/**
- * Get mock tools for known MCP servers
- */
-function getMockTools(serverId: string): MCPTool[] {
-  const mockToolsMap: Record<string, MCPTool[]> = {
-    'filesystem': [
-      {
-        name: 'read_file',
-        description: 'Read the complete contents of a file',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'write_file',
-        description: 'Write content to a file',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'list_directory',
-        description: 'List files and directories in a path',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'directory_tree',
-        description: 'Get a recursive directory tree',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'search_files',
-        description: 'Search for files matching a pattern',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'get_file_info',
-        description: 'Get metadata about a file',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'create_directory',
-        description: 'Create a new directory',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'delete_file',
-        description: 'Delete a file or directory',
-        permissionStatus: 'blocked'
-      }
-    ],
-    'brave-search': [
-      {
-        name: 'brave_web_search',
-        description: 'Search the web using Brave Search API',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'brave_news_search',
-        description: 'Search news articles',
-        permissionStatus: 'default'
-      }
-    ],
-    'github': [
-      {
-        name: 'create_issue',
-        description: 'Create a GitHub issue',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'create_pull_request',
-        description: 'Create a pull request',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'list_issues',
-        description: 'List issues in a repository',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'add_comment',
-        description: 'Add a comment to an issue or PR',
-        permissionStatus: 'blocked'
-      }
-    ],
-    'figma': [
-      {
-        name: 'get_file',
-        description: 'Get Figma file details and metadata',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'get_components',
-        description: 'List all components in a Figma file',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'export_frame',
-        description: 'Export a frame as PNG or SVG',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'get_node',
-        description: 'Get detailed node information',
-        permissionStatus: 'allowed'
-      }
-    ],
-    'chrome-devtools': [
-      {
-        name: 'navigate',
-        description: 'Navigate to a URL',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'snapshot',
-        description: 'Take a snapshot of the page',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'click',
-        description: 'Click an element on the page',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'fill',
-        description: 'Fill an input field',
-        permissionStatus: 'allowed'
-      },
-      {
-        name: 'evaluate',
-        description: 'Execute JavaScript in the page',
-        permissionStatus: 'allowed'
-      }
-    ]
-  };
-
-  // Try to match by server ID
-  if (mockToolsMap[serverId]) {
-    return mockToolsMap[serverId];
+async function getOrCreateClient(serverId: string, serverConfig: any): Promise<Client> {
+  // Check cache first
+  const cached = clientCache.get(serverId);
+  if (cached) {
+    return cached.client;
   }
 
-  // Check for partial matches (e.g., 'figma-developer-mcp' contains 'figma')
-  for (const [key, tools] of Object.entries(mockToolsMap)) {
-    if (serverId.includes(key) || key.includes(serverId)) {
-      console.log(`[MCP Tools] Partial match: ${serverId} -> ${key}`);
-      return tools;
-    }
-  }
-
-  // Return generic tools as fallback
-  return [
+  // Create new client
+  const client = new Client(
     {
-      name: 'mcp_tool_1',
-      description: `${serverId} tool #1 - Mock MCP tool`,
-      permissionStatus: 'allowed'
+      name: 'claude-code-config-manager',
+      version: '1.0.0'
     },
     {
-      name: 'mcp_tool_2',
-      description: `${serverId} tool #2 - Mock MCP tool`,
-      permissionStatus: 'default'
-    },
-    {
-      name: 'mcp_tool_3',
-      description: `${serverId} tool #3 - Mock MCP tool`,
-      permissionStatus: 'allowed'
+      capabilities: {}
     }
-  ];
-}
+  );
 
-/**
- * Get mock HTTP tools
- */
-function getMockHttpTools(serverId: string, url: string): MCPTool[] {
-  // Check URL for clues about the server type
-  if (url.includes('filesystem')) {
-    return getMockTools('filesystem');
-  }
-  if (url.includes('github')) {
-    return getMockTools('github');
-  }
+  let transport: any;
 
-  return getMockTools(serverId);
-}
+  if (serverConfig.transport === 'stdio' || serverConfig.command) {
+    // Stdio transport
+    const command = serverConfig.command || 'npx';
+    const args = serverConfig.args || [];
 
-/**
- * Get mock resources
- */
-function getMockResources(serverId: string): MCPResource[] {
-  const mockResourcesMap: Record<string, MCPResource[]> = {
-    'filesystem': [
-      {
-        uri: 'file:///',
-        name: 'Root Filesystem',
-        description: 'Root filesystem access',
-        mimeType: 'inode/directory'
+    transport = new StdioClientTransport({
+      command,
+      args,
+      env: {
+        ...process.env,
+        ...serverConfig.env
       }
-    ]
-  };
+    });
+  } else if (serverConfig.transport === 'http' || serverConfig.url) {
+    // HTTP/SSE transport
+    const url = serverConfig.url;
+    if (!url) {
+      throw new Error('URL is required for HTTP transport');
+    }
 
-  return mockResourcesMap[serverId] || [];
+    transport = new SSEClientTransport(new URL(url));
+  } else {
+    throw new Error(`Unsupported transport: ${serverConfig.transport}`);
+  }
+
+  // Connect to the MCP server
+  await client.connect(transport);
+
+  // Cache the client
+  clientCache.set(serverId, { client, transport });
+
+  return client;
+}
+
+/**
+ * Close and cleanup a client connection
+ */
+export async function closeClient(serverId: string): Promise<void> {
+  const cached = clientCache.get(serverId);
+  if (cached) {
+    try {
+      await cached.client.close();
+    } catch (error) {
+      console.error(`[MCP] Error closing client for ${serverId}:`, error);
+    }
+    clientCache.delete(serverId);
+  }
+}
+
+/**
+ * Close all client connections
+ */
+export async function closeAllClients(): Promise<void> {
+  const promises = Array.from(clientCache.keys()).map(serverId => closeClient(serverId));
+  await Promise.allSettled(promises);
+  clientCache.clear();
 }
