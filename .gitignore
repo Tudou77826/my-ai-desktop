@@ -54,7 +54,7 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# Development and internal docs (keep only README.md, LICENSE, ROADMAP.md)
+# Development and internal docs (keep only README.md, LICENSE)
 docs/
 .claude/
 *.md.bak
@@ -66,3 +66,5 @@ PROJECT_STRUCTURE.md
 技术方案*.md
 ClaudeCode*.md
 迭代*.md
+CLAUDE.md
+ROADMAP.md

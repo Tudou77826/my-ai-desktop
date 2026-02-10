@@ -166,8 +166,6 @@ POST /api/rules/create      # 创建 Rule
 POST /api/subagents/save    # 保存 SubAgent
 ```
 
-完整 API 文档见 [CLAUDE.md](./CLAUDE.md)。
-
 ## 开发指南
 
 ### 代码规范
@@ -175,7 +173,6 @@ POST /api/subagents/save    # 保存 SubAgent
 - 使用 TypeScript 进行类型检查
 - 遵循 ESLint 配置
 - 使用 Prettier 格式化代码
-- 详细的编码指南见 [CLAUDE.md](./CLAUDE.md)
 
 ### 类型检查
 
